@@ -114,6 +114,8 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     logoFit: 'contain' as 'contain' | 'cover'
   });
 
+  const [isSavingBranding, setIsSavingBranding] = useState(false);
+
   // Public Leaders state
   const [leadersList, setLeadersList] = useState<LeadershipMember[]>([]);
   const [newLeader, setNewLeader] = useState<LeadershipMember>({
@@ -512,6 +514,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
     }
+    setIsSavingBranding(true);
     try {
       const payload = {
         ...(appearance || {}),
@@ -529,7 +532,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
         if (res.appearance) {
           setAppearance(res.appearance);
         }
-        triggerFeedback('Custom logo & brand elements synchronized & published live to the entire portal!');
+        triggerFeedback('Site branding successfully updated & published live across the portal!');
         await loadAdminData();
         await onRefreshData();
       } else {
@@ -538,6 +541,8 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     } catch (err: any) {
       console.error('Branding save error:', err);
       triggerFeedback('Error saving brand elements: ' + (err.message || 'Unknown error'), 'error');
+    } finally {
+      setIsSavingBranding(false);
     }
   };
 
@@ -2622,10 +2627,15 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
 
                     <button
                       onClick={handleSaveBranding}
-                      className="px-5 py-2.5 bg-[#0A1F44] text-[#C9A227] border-2 border-[#C9A227] uppercase font-bold text-xs tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44] transition-all flex items-center justify-center space-x-2 shadow-md shrink-0"
+                      disabled={isSavingBranding}
+                      className="px-5 py-2.5 bg-[#0A1F44] text-[#C9A227] border-2 border-[#C9A227] uppercase font-bold text-xs tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44] transition-all flex items-center justify-center space-x-2 shadow-md shrink-0 disabled:opacity-50"
                     >
-                      <CheckCircle className="h-4 w-4" />
-                      <span>Save & Publish Brand Identity Live</span>
+                      {isSavingBranding ? (
+                        <div className="animate-spin h-4 w-4 border-2 border-[#C9A227] border-t-transparent rounded-full" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4" />
+                      )}
+                      <span>{isSavingBranding ? 'Updating & Publishing...' : 'Update & Publish'}</span>
                     </button>
                   </div>
 
@@ -2908,10 +2918,15 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                     <div className="pt-2 text-right">
                       <button
                         type="submit"
-                        className="px-6 py-3 bg-[#0A1F44] text-[#C9A227] border-2 border-[#C9A227] uppercase font-bold text-xs tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44] transition-all inline-flex items-center space-x-2 shadow-md"
+                        disabled={isSavingBranding}
+                        className="px-6 py-3 bg-[#0A1F44] text-[#C9A227] border-2 border-[#C9A227] uppercase font-bold text-xs tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44] transition-all inline-flex items-center space-x-2 shadow-md disabled:opacity-50"
                       >
-                        <CheckCircle className="h-4 w-4" />
-                        <span>Save & Publish Brand Identity Live</span>
+                        {isSavingBranding ? (
+                          <div className="animate-spin h-4 w-4 border-2 border-[#C9A227] border-t-transparent rounded-full" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4" />
+                        )}
+                        <span>{isSavingBranding ? 'Updating & Publishing...' : 'Update & Publish'}</span>
                       </button>
                     </div>
                   </form>

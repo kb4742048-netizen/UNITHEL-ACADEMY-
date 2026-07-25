@@ -58,27 +58,27 @@ export default function HomeView({ setView, blogs, events, appearance, openAuthM
         </div>
 
         <div className="max-w-md mx-auto sm:max-w-xl md:max-w-3xl text-center relative z-10 space-y-4">
-          {/* LARGE LOGO AT THE START OF THE SITE */}
-          <div className="flex justify-center mb-5">
-            <div className={`flex items-center justify-center backdrop-blur-sm ${
+          {/* LARGE & CLEAR LOGO BEFORE THE TITLE / ORGANIZATION NAME */}
+          <div className="flex justify-center mb-6">
+            <div className={`flex items-center justify-center backdrop-blur-md p-4 sm:p-6 bg-[#0D2B4E]/95 border-3 border-[#C9A227] shadow-[0_0_30px_rgba(201,162,39,0.5)] ${
               appearance.logoStyle === 'transparent'
-                ? 'p-0 bg-transparent border-0'
+                ? 'p-0 bg-transparent border-0 shadow-none'
                 : appearance.logoStyle === 'circle'
-                ? 'p-3.5 bg-[#0D2B4E]/90 border-2 border-[#C9A227] shadow-[0_0_15px_rgba(201,162,39,0.4)] rounded-full'
+                ? 'rounded-full'
                 : appearance.logoStyle === 'rounded'
-                ? 'p-3.5 bg-[#0D2B4E]/90 border-2 border-[#C9A227] shadow-[0_0_15px_rgba(201,162,39,0.4)] rounded-2xl'
-                : 'p-3.5 bg-[#0D2B4E]/90 border-2 border-[#C9A227] shadow-[0_0_15px_rgba(201,162,39,0.4)] rounded-none'
+                ? 'rounded-3xl'
+                : 'rounded-xl'
             }`}>
               {appearance.logoUrl ? (
                 <img 
                   src={appearance.logoUrl} 
-                  alt={appearance.logoText || "Organization Logo"} 
-                  className="h-16 w-16 sm:h-24 sm:w-24 object-contain" 
+                  alt={appearance.logoText || "Unithel Academy Logo"} 
+                  className="h-24 w-24 sm:h-32 sm:w-32 md:h-40 md:w-40 object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]" 
                   style={{ objectFit: (appearance.logoFit as any) || 'contain' }}
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <Compass className="h-16 w-16 sm:h-24 sm:w-24 text-[#C9A227]" />
+                <Compass className="h-24 w-24 sm:h-32 sm:w-32 md:h-40 md:w-40 text-[#C9A227] drop-shadow-md" />
               )}
             </div>
           </div>
