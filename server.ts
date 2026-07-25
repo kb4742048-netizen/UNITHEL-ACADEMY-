@@ -1,0 +1,1653 @@
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import { createServer as createViteServer } from 'vite';
+import pg from 'pg';
+const { Pool } = pg;
+
+// Load environment variables
+dotenv.config();
+
+const app = express();
+const PORT = 3000;
+const DB_FILE = path.join(process.cwd(), 'database.json');
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// --- DATABASE INITALIZATION ---
+interface DatabaseSchema {
+  members: any[];
+  blogs: any[];
+  news: any[];
+  events: any[];
+  discussions: any[];
+  chatMessages: any[];
+  ballots: any[];
+  duesRecords: any[];
+  lordPatronInvites: any[];
+  appearance: {
+    logoUrl: string;
+    logoText?: string;
+    logoSubtext?: string;
+    heroTitle: string;
+    heroSubtitle: string;
+    heroBannerUrl: string;
+    imageOverlayOpacity?: number;
+    imageObjectFit?: string;
+    imageFilterStyle?: string;
+    heroImageHeight?: number;
+    computedAspect?: string;
+    autoOptimizeImages?: boolean;
+    imageBorderRadius?: string;
+    announcements: string[];
+    gallery: string[];
+    leaders: any[];
+  };
+}
+
+const defaultDb: DatabaseSchema = {
+  members: [],
+  blogs: [
+    {
+      id: 'b1',
+      title: 'Unithel Academy Annual Grand Alumni Reunion Announced',
+      excerpt: 'Prepare to join us for our annual academic symposium and alumni banquet in Opolo Yenagoa.',
+      content: 'We are thrilled to announce the 2026 Unithel Academy Annual Grand Alumni Reunion. This flagship event brings together alumni from across generations for a day of spirited networking, lectures, and an elegant dinner banquet. Details on scheduling, guest lectures, and registration are available inside the member portal.',
+      image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87',
+      date: '2026-07-20',
+      category: 'Reunion',
+      isPinned: true,
+      visibleOnHome: true,
+    },
+    {
+      id: 'b2',
+      title: 'Empowering Unithel Scholars: The Mentorship Exchange Launch',
+      excerpt: 'Connect with established Unithel Academy alumni scholars and navigate your career path together.',
+      content: 'The Unithel Academy Alumni Organization is launching a comprehensive mentorship program connecting young graduates with seasoned alumni leaders. Whether you are charting new professional avenues or wish to give back as a mentor, find out how to participate inside the portal today.',
+      image: 'https://images.unsplash.com/photo-1519074069444-1ba4e6663104',
+      date: '2026-07-22',
+      category: 'Career',
+      isPinned: false,
+      visibleOnHome: true,
+    },
+  ],
+  news: [
+    {
+      id: 'n1',
+      title: 'Unithel Academy Research Fellowship Grant Opportunities',
+      content: 'The Unithel Academy Executive Committee is proud to announce five new Research Fellowship grants for alumni working in interdisciplinary science and technology fields. Applications open next month.',
+      date: '2026-07-24',
+      isPinned: true
+    },
+    {
+      id: 'n2',
+      title: 'Summer Alumni Seminar Series Speakers Announced',
+      content: 'We have finalized the speaker list for the upcoming Summer Alumni Seminar Series. Topics range from artificial intelligence policy to advancements in global economics.',
+      date: '2026-07-25',
+      isPinned: false
+    }
+  ],
+  events: [
+    {
+      id: 'e1',
+      title: 'Alumni Gala & Scholarship Dinner',
+      description: 'An elegant evening celebrating our senior scholars and distinguished alumni achievements with standard circle custom ceremonies.',
+      date: '2026-08-15',
+      time: '19:00',
+      venue: 'The Grand Brass Ballroom, Scholar Hall',
+      registrations: [],
+    },
+    {
+      id: 'e2',
+      title: 'Global Academic Leadership Seminar',
+      description: 'A professional workshop focused on navigating research collaboration and building resilient team strategies in current industries.',
+      date: '2026-09-02',
+      time: '10:00',
+      venue: 'Alumni Amphitheater (and Online)',
+      registrations: [],
+    },
+  ],
+  discussions: [
+    {
+      id: 'd1',
+      title: 'Establishing the New Career Guidance Program',
+      content: 'Hello Circle Members! I would love to get feedback on the topics we should focus on for our next virtual masterclass. Would you prefer Resume Auditing or Executive Interview preparation?',
+      authorId: 'admin',
+      authorName: 'Dr. John Doe',
+      authorRole: 'admin',
+      category: 'Mentorship',
+      createdAt: '2026-07-23T10:00:00Z',
+      reactions: { '👍': ['admin'], '❤️': [] },
+      comments: [
+        {
+          id: 'c1',
+          content: 'I would vote for Executive Interview prep. This is often where young alumni struggle the most with confidence.',
+          authorId: 'm-dummy',
+          authorName: 'Charles Boyle',
+          authorRole: 'member',
+          createdAt: '2026-07-23T11:30:00Z',
+          replies: []
+        }
+      ],
+      isLocked: false,
+      isPinned: true,
+    }
+  ],
+  chatMessages: [
+    {
+      id: 'cmsg1',
+      content: 'Welcome to the Scholar Circle Chatroom! This channel is open for real-time announcements.',
+      authorId: 'admin',
+      authorName: 'Dr. John Doe',
+      authorRole: 'admin',
+      createdAt: '2026-07-24T09:00:00Z',
+      channel: 'general',
+      isPinned: true
+    }
+  ],
+  ballots: [
+    {
+      id: 'bal1',
+      title: 'Approve Constitution Amendment (Article VII - Dues Structure)',
+      description: 'Do you vote to approve the proposed adjustment in annual association dues to fund the regional alumni chapters?',
+      type: 'policy',
+      options: ['Aye', 'Nay'],
+      votes: {},
+      status: 'active',
+      resultsPublished: false,
+      createdAt: '2026-07-24T08:00:00Z'
+    }
+  ],
+  duesRecords: [],
+  lordPatronInvites: [
+    {
+      code: 'SCHOLAR-INV-101',
+      isUsed: false,
+      usedBy: null,
+      createdAt: '2026-07-24T12:00:00Z'
+    }
+  ],
+  appearance: {
+    logoUrl: '',
+    logoText: 'UNITHEL ACADEMY',
+    logoSubtext: 'ALUMNI ORGANIZATION',
+    heroTitle: 'UNITHEL ACADEMY ALUMNI ORGANIZATION',
+    heroSubtitle: 'Connecting generations of Unithel Academy graduates, distinguished scholars, and academic patrons to foster lifelong excellence and mutual growth.',
+    heroBannerUrl: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87',
+    imageOverlayOpacity: 0.88,
+    imageObjectFit: 'cover',
+    imageFilterStyle: 'none',
+    heroImageHeight: 420,
+    computedAspect: '16:9',
+    autoOptimizeImages: true,
+    imageBorderRadius: 'none',
+    announcements: [
+      'Welcome to the official Unithel Academy Alumni Organization portal!',
+      'Unithel Academy Annual Grand Alumni Reunion registration is now open.',
+      'Applications open for the Unithel Research Fellowship Grants.'
+    ],
+    gallery: [
+      'https://images.unsplash.com/photo-1519074069444-1ba4e6663104',
+      'https://images.unsplash.com/photo-1540575467063-178a50c2df87',
+      'https://images.unsplash.com/photo-1528605248644-14dd04022da1'
+    ],
+    leaders: [
+      { name: 'Dr. John Doe', position: 'Association President (Admin)', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e' },
+      { name: 'Dr. Amy Santiago', position: 'Secretary General', image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2' },
+      { name: 'Charles Boyle', position: 'Treasurer', image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7' }
+    ]
+  }
+};
+
+let pool: pg.Pool | null = null;
+let isPostgres = false;
+let cachedDb: DatabaseSchema = defaultDb;
+
+if (process.env.DATABASE_URL) {
+  try {
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    isPostgres = true;
+    console.log('[PostgreSQL] Connection Pool initialized.');
+  } catch (err) {
+    console.error('[PostgreSQL] Initialization failed, falling back to local JSON file.', err);
+    pool = null;
+    isPostgres = false;
+  }
+}
+
+// Ensure database tables exist
+async function initializeDatabase() {
+  if (!pool || !isPostgres) return;
+  const client = await pool.connect();
+  try {
+    console.log('[PostgreSQL] Bootstrapping tables...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS site_settings (
+        id TEXT PRIMARY KEY,
+        logo_url TEXT,
+        hero_title TEXT,
+        hero_subtitle TEXT,
+        hero_banner_url TEXT,
+        announcements JSONB,
+        gallery JSONB,
+        leaders JSONB,
+        settings_json JSONB
+      );
+      ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS settings_json JSONB;
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS members (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        email TEXT UNIQUE,
+        password TEXT,
+        class_year TEXT,
+        phone TEXT,
+        role TEXT,
+        status TEXT,
+        joined_at TEXT,
+        avatar_url TEXT,
+        position TEXT DEFAULT 'Scholar',
+        is_patron BOOLEAN DEFAULT FALSE,
+        patron_title TEXT DEFAULT '',
+        biography TEXT DEFAULT '',
+        workplace TEXT DEFAULT '',
+        job_title TEXT DEFAULT '',
+        achievements TEXT DEFAULT '',
+        social_links JSONB
+      );
+    `);
+
+    // Backwards compatibility for existing DB setups
+    await client.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS position TEXT DEFAULT 'Scholar';`);
+    await client.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS is_patron BOOLEAN DEFAULT FALSE;`);
+    await client.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS patron_title TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS biography TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS workplace TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS job_title TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS achievements TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS social_links JSONB;`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS blogs (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        content TEXT,
+        excerpt TEXT,
+        image TEXT,
+        date TEXT,
+        category TEXT,
+        is_pinned BOOLEAN,
+        visible_on_home BOOLEAN
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS news (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        content TEXT,
+        date TEXT,
+        is_pinned BOOLEAN
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS events (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        description TEXT,
+        date TEXT,
+        time TEXT,
+        venue TEXT,
+        registrations JSONB
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS discussions (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        content TEXT,
+        author_id TEXT,
+        author_name TEXT,
+        author_role TEXT,
+        category TEXT,
+        created_at TEXT,
+        reactions JSONB,
+        is_locked BOOLEAN,
+        is_pinned BOOLEAN
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS comments (
+        id TEXT PRIMARY KEY,
+        discussion_id TEXT,
+        content TEXT,
+        author_id TEXT,
+        author_name TEXT,
+        author_role TEXT,
+        created_at TEXT,
+        replies JSONB
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ballots (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        description TEXT,
+        type TEXT,
+        options JSONB,
+        votes JSONB,
+        status TEXT,
+        results_published BOOLEAN,
+        created_at TEXT
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS dues_records (
+        id TEXT PRIMARY KEY,
+        member_id TEXT,
+        member_name TEXT,
+        months JSONB,
+        amount NUMERIC,
+        reference TEXT,
+        remarks TEXT,
+        date TEXT,
+        status TEXT,
+        receipt_no TEXT
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lord_patron_invites (
+        code TEXT PRIMARY KEY,
+        is_used BOOLEAN,
+        used_by TEXT,
+        created_at TEXT
+      );
+    `);
+
+    const countRes = await client.query('SELECT COUNT(*) FROM members');
+    if (parseInt(countRes.rows[0].count, 10) === 0) {
+      console.log('[PostgreSQL] Database empty. Seeding defaults...');
+      await saveToPostgres(defaultDb);
+    } else {
+      console.log('[PostgreSQL] Database already seeded with records.');
+    }
+  } catch (err) {
+    console.error('[PostgreSQL] Error in bootstrap/seeding.', err);
+  } finally {
+    client.release();
+  }
+}
+
+async function saveToPostgres(db: DatabaseSchema) {
+  if (!pool || !isPostgres) return;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // 1. Members
+    await client.query('DELETE FROM members');
+    for (const m of db.members) {
+      await client.query(
+        `INSERT INTO members (id, name, email, password, class_year, phone, role, status, joined_at, avatar_url, position, is_patron, patron_title, biography, workplace, job_title, achievements, social_links)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+        [
+          m.id, 
+          m.name, 
+          m.email, 
+          m.password, 
+          m.classYear, 
+          m.phone, 
+          m.role, 
+          m.status, 
+          m.joinedAt, 
+          m.avatarUrl,
+          m.position || 'Scholar',
+          !!m.isPatron,
+          m.patronTitle || '',
+          m.biography || '',
+          m.workplace || '',
+          m.jobTitle || '',
+          m.achievements || '',
+          m.socialLinks ? JSON.stringify(m.socialLinks) : null
+        ]
+      );
+    }
+    
+    // 2. Blogs
+    await client.query('DELETE FROM blogs');
+    for (const b of db.blogs) {
+      await client.query(
+        `INSERT INTO blogs (id, title, content, excerpt, image, date, category, is_pinned, visible_on_home)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [b.id, b.title, b.content, b.excerpt, b.image, b.date, b.category, b.isPinned, b.visibleOnHome]
+      );
+    }
+    
+    // 3. News
+    await client.query('DELETE FROM news');
+    const newsList = db.news || [];
+    for (const n of newsList) {
+      await client.query(
+        `INSERT INTO news (id, title, content, date, is_pinned)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [n.id, n.title, n.content, n.date, n.isPinned]
+      );
+    }
+    
+    // 4. Events
+    await client.query('DELETE FROM events');
+    for (const e of db.events) {
+      await client.query(
+        `INSERT INTO events (id, title, description, date, time, venue, registrations)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [e.id, e.title, e.description, e.date, e.time, e.venue, JSON.stringify(e.registrations)]
+      );
+    }
+    
+    // 5. Discussions
+    await client.query('DELETE FROM discussions');
+    for (const d of db.discussions) {
+      await client.query(
+        `INSERT INTO discussions (id, title, content, author_id, author_name, author_role, category, created_at, reactions, is_locked, is_pinned)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [d.id, d.title, d.content, d.authorId, d.authorName, d.authorRole, d.category, d.createdAt, JSON.stringify(d.reactions), d.isLocked, d.isPinned || false]
+      );
+    }
+    
+    // 6. Comments
+    await client.query('DELETE FROM comments');
+    for (const d of db.discussions) {
+      if (d.comments) {
+        for (const c of d.comments) {
+          await client.query(
+            `INSERT INTO comments (id, discussion_id, content, author_id, author_name, author_role, created_at, replies)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [c.id, d.id, c.content, c.authorId, c.authorName, c.authorRole, c.createdAt, JSON.stringify(c.replies)]
+          );
+        }
+      }
+    }
+    
+    // 7. Ballots
+    await client.query('DELETE FROM ballots');
+    for (const b of db.ballots) {
+      await client.query(
+        `INSERT INTO ballots (id, title, description, type, options, votes, status, results_published, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [b.id, b.title, b.description, b.type, JSON.stringify(b.options), JSON.stringify(b.votes), b.status, b.resultsPublished, b.createdAt]
+      );
+    }
+    
+    // 8. Dues Records
+    await client.query('DELETE FROM dues_records');
+    for (const r of db.duesRecords) {
+      await client.query(
+        `INSERT INTO dues_records (id, member_id, member_name, months, amount, reference, remarks, date, status, receipt_no)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [r.id, r.memberId, r.memberName, JSON.stringify(r.months), r.amount, r.reference, r.remarks, r.date, r.status, r.receiptNo]
+      );
+    }
+    
+    // 9. Lord Patron Invites
+    await client.query('DELETE FROM lord_patron_invites');
+    for (const i of db.lordPatronInvites) {
+      await client.query(
+        `INSERT INTO lord_patron_invites (code, is_used, used_by, created_at)
+         VALUES ($1, $2, $3, $4)`,
+        [i.code, i.isUsed, i.usedBy, i.createdAt]
+      );
+    }
+    
+    // 10. Site Settings
+    await client.query('DELETE FROM site_settings');
+    await client.query(
+      `INSERT INTO site_settings (id, logo_url, hero_title, hero_subtitle, hero_banner_url, announcements, gallery, leaders, settings_json)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        'default', 
+        db.appearance.logoUrl || '', 
+        db.appearance.heroTitle || '', 
+        db.appearance.heroSubtitle || '', 
+        db.appearance.heroBannerUrl || '', 
+        JSON.stringify(db.appearance.announcements || []), 
+        JSON.stringify(db.appearance.gallery || []), 
+        JSON.stringify(db.appearance.leaders || []),
+        JSON.stringify(db.appearance || {})
+      ]
+    );
+    
+    await client.query('COMMIT');
+    console.log('[PostgreSQL] DB successfully synced.');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[PostgreSQL] DB sync transaction failed. Rolling back.', err);
+  } finally {
+    client.release();
+  }
+}
+
+async function loadFromPostgres(): Promise<DatabaseSchema | null> {
+  if (!pool || !isPostgres) return null;
+  const client = await pool.connect();
+  try {
+    const db: DatabaseSchema = {
+      members: [],
+      blogs: [],
+      news: [],
+      events: [],
+      discussions: [],
+      chatMessages: [],
+      ballots: [],
+      duesRecords: [],
+      lordPatronInvites: [],
+      appearance: {
+        logoUrl: '',
+        heroTitle: '',
+        heroSubtitle: '',
+        heroBannerUrl: '',
+        announcements: [],
+        gallery: [],
+        leaders: []
+      }
+    };
+    
+    // 1. Members
+    const memRes = await client.query('SELECT * FROM members');
+    db.members = memRes.rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      password: r.password,
+      classYear: r.class_year,
+      phone: r.phone,
+      role: r.role,
+      status: r.status,
+      joinedAt: r.joined_at,
+      avatarUrl: r.avatar_url,
+      position: r.position || 'Scholar',
+      isPatron: !!r.is_patron,
+      patronTitle: r.patron_title || '',
+      biography: r.biography || '',
+      workplace: r.workplace || '',
+      jobTitle: r.job_title || '',
+      achievements: r.achievements || '',
+      socialLinks: typeof r.social_links === 'string' ? JSON.parse(r.social_links) : (r.social_links || null)
+    }));
+    
+    // 2. Blogs
+    const blogRes = await client.query('SELECT * FROM blogs');
+    db.blogs = blogRes.rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      content: r.content,
+      excerpt: r.excerpt,
+      image: r.image,
+      date: r.date,
+      category: r.category,
+      isPinned: r.is_pinned,
+      visibleOnHome: r.visible_on_home
+    }));
+    
+    // 3. News
+    const newsRes = await client.query('SELECT * FROM news');
+    db.news = newsRes.rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      content: r.content,
+      date: r.date,
+      isPinned: r.is_pinned
+    }));
+    
+    // 4. Events
+    const eventRes = await client.query('SELECT * FROM events');
+    db.events = eventRes.rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      date: r.date,
+      time: r.time,
+      venue: r.venue,
+      registrations: typeof r.registrations === 'string' ? JSON.parse(r.registrations) : (r.registrations || [])
+    }));
+    
+    // 5. Discussions & Comments
+    const discRes = await client.query('SELECT * FROM discussions');
+    const commentsRes = await client.query('SELECT * FROM comments');
+    
+    const commentsMap: Record<string, any[]> = {};
+    for (const c of commentsRes.rows) {
+      if (!commentsMap[c.discussion_id]) {
+        commentsMap[c.discussion_id] = [];
+      }
+      commentsMap[c.discussion_id].push({
+        id: c.id,
+        content: c.content,
+        authorId: c.author_id,
+        authorName: c.author_name,
+        authorRole: c.author_role,
+        createdAt: c.created_at,
+        replies: typeof c.replies === 'string' ? JSON.parse(c.replies) : (c.replies || [])
+      });
+    }
+    
+    db.discussions = discRes.rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      content: r.content,
+      authorId: r.author_id,
+      authorName: r.author_name,
+      authorRole: r.author_role,
+      category: r.category,
+      createdAt: r.created_at,
+      reactions: typeof r.reactions === 'string' ? JSON.parse(r.reactions) : (r.reactions || {}),
+      isLocked: r.is_locked,
+      isPinned: r.is_pinned || false,
+      comments: commentsMap[r.id] || []
+    }));
+    
+    // 6. Ballots
+    const ballotRes = await client.query('SELECT * FROM ballots');
+    db.ballots = ballotRes.rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      type: r.type,
+      options: typeof r.options === 'string' ? JSON.parse(r.options) : (r.options || []),
+      votes: typeof r.votes === 'string' ? JSON.parse(r.votes) : (r.votes || {}),
+      status: r.status,
+      resultsPublished: r.results_published,
+      createdAt: r.created_at
+    }));
+    
+    // 7. Dues Records
+    const duesRes = await client.query('SELECT * FROM dues_records');
+    db.duesRecords = duesRes.rows.map(r => ({
+      id: r.id,
+      memberId: r.member_id,
+      memberName: r.member_name,
+      months: typeof r.months === 'string' ? JSON.parse(r.months) : (r.months || []),
+      amount: Number(r.amount),
+      reference: r.reference,
+      remarks: r.remarks,
+      date: r.date,
+      status: r.status,
+      receiptNo: r.receipt_no
+    }));
+    
+    // 8. Lord Patron Invites
+    const inviteRes = await client.query('SELECT * FROM lord_patron_invites');
+    db.lordPatronInvites = inviteRes.rows.map(r => ({
+      code: r.code,
+      isUsed: r.is_used,
+      usedBy: r.used_by,
+      createdAt: r.created_at
+    }));
+    
+    // 9. Site Settings
+    const settingRes = await client.query('SELECT * FROM site_settings WHERE id = $1', ['default']);
+    if (settingRes.rows.length > 0) {
+      const s = settingRes.rows[0];
+      if (s.settings_json) {
+        const parsed = typeof s.settings_json === 'string' ? JSON.parse(s.settings_json) : s.settings_json;
+        db.appearance = {
+          ...defaultDb.appearance,
+          ...parsed
+        };
+      } else {
+        db.appearance = {
+          ...defaultDb.appearance,
+          logoUrl: s.logo_url || '',
+          heroTitle: s.hero_title || '',
+          heroSubtitle: s.hero_subtitle || '',
+          heroBannerUrl: s.hero_banner_url || '',
+          announcements: typeof s.announcements === 'string' ? JSON.parse(s.announcements) : (s.announcements || []),
+          gallery: typeof s.gallery === 'string' ? JSON.parse(s.gallery) : (s.gallery || []),
+          leaders: typeof s.leaders === 'string' ? JSON.parse(s.leaders) : (s.leaders || [])
+        };
+      }
+    } else {
+      db.appearance = defaultDb.appearance;
+    }
+    
+    return db;
+  } catch (err) {
+    console.error('[PostgreSQL] Failed loading from database tables. Using JSON fallback.', err);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+// Ensure database file exists
+function loadDb(): DatabaseSchema {
+  return cachedDb;
+}
+
+function saveDb(data: DatabaseSchema) {
+  cachedDb = data;
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error('Error writing DB_FILE fallback', e);
+  }
+  if (isPostgres) {
+    saveToPostgres(data).catch(err => console.error('[PostgreSQL] Async sync error:', err));
+  }
+}
+
+// Global bootstrap loader
+async function initializeDataEngine() {
+  if (isPostgres) {
+    await initializeDatabase();
+    const pgData = await loadFromPostgres();
+    if (pgData) {
+      cachedDb = pgData;
+      console.log('[PostgreSQL] Loaded active dataset.');
+      return;
+    }
+  }
+
+  // Fallback to local JSON file
+  if (!fs.existsSync(DB_FILE)) {
+    fs.writeFileSync(DB_FILE, JSON.stringify(defaultDb, null, 2));
+    cachedDb = defaultDb;
+  } else {
+    try {
+      const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      cachedDb = JSON.parse(raw);
+      // Ensure news is present
+      if (!cachedDb.news) {
+        cachedDb.news = defaultDb.news;
+      }
+    } catch (e) {
+      console.error('Error parsing DB_FILE, resetting to default', e);
+      cachedDb = defaultDb;
+    }
+  }
+}
+
+// Initialize on server start
+initializeDataEngine();
+
+// --- HELPER FOR CURRENT ADMIN CREDENTIALS ---
+function getAdminCredentials() {
+  return {
+    name: process.env.ADMIN_NAME || 'Admiral John Doe',
+    classYear: process.env.ADMIN_CLASS_YEAR || '1995',
+    email: process.env.ADMIN_EMAIL || 'admin@seahawks.org',
+    password: process.env.ADMIN_PASSWORD || 'NavyGoldPassword123!',
+    role: 'admin' as const,
+    status: 'active' as const,
+    id: 'admin',
+    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e'
+  };
+}
+
+// --- API ROUTING ---
+
+// 1. AUTH API
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  const admin = getAdminCredentials();
+
+  // Check admin first
+  if (email === admin.email) {
+    if (password === admin.password) {
+      return res.json({
+        id: admin.id,
+        name: admin.name,
+        classYear: admin.classYear,
+        email: admin.email,
+        phone: '07068019293',
+        role: admin.role,
+        status: admin.status,
+        avatarUrl: admin.avatarUrl,
+        joinedAt: '1995-01-01'
+      });
+    } else {
+      return res.status(401).json({ error: 'Incorrect administrator password.' });
+    }
+  }
+
+  // Check local members database
+  const db = loadDb();
+  const member = db.members.find(m => m.email === email);
+  if (!member) {
+    return res.status(401).json({ error: 'No account registered with this email.' });
+  }
+
+  if (member.password !== password) {
+    return res.status(401).json({ error: 'Incorrect password.' });
+  }
+
+  if (member.status === 'pending') {
+    return res.status(403).json({ error: 'Your registration is pending administrator approval.' });
+  }
+
+  if (member.status === 'suspended') {
+    return res.status(403).json({ error: 'Your account has been suspended by the administrator.' });
+  }
+
+  res.json({
+    id: member.id,
+    name: member.name,
+    classYear: member.classYear,
+    email: member.email,
+    phone: member.phone,
+    role: member.role,
+    status: member.status,
+    joinedAt: member.joinedAt,
+    avatarUrl: member.avatarUrl,
+    position: member.position || 'Scholar',
+    isPatron: !!member.isPatron,
+    patronTitle: member.patronTitle || '',
+    biography: member.biography || '',
+    workplace: member.workplace || '',
+    jobTitle: member.jobTitle || '',
+    achievements: member.achievements || '',
+    socialLinks: member.socialLinks || null
+  });
+});
+
+app.post('/api/auth/register', (req, res) => {
+  const { name, classYear, email, phone, password } = req.body;
+  if (!name || !classYear || !email || !phone || !password) {
+    return res.status(400).json({ error: 'All fields are required.' });
+  }
+
+  const db = loadDb();
+  if (email === getAdminCredentials().email || db.members.some(m => m.email === email)) {
+    return res.status(400).json({ error: 'An account with this email already exists.' });
+  }
+
+  const newMember = {
+    id: 'm-' + Math.random().toString(36).substr(2, 9),
+    name,
+    classYear,
+    email,
+    phone,
+    password,
+    role: 'member',
+    status: 'pending', // Pending admin approval
+    joinedAt: new Date().toISOString().split('T')[0],
+    avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`
+  };
+
+  db.members.push(newMember);
+  saveDb(db);
+
+  res.json({ success: true, message: 'Registration submitted successfully. Pending administrative approval.' });
+});
+
+// Register via Lord Patron secure code
+app.post('/api/auth/register-lord-patron', (req, res) => {
+  const { name, email, phone, password, code } = req.body;
+  if (!name || !email || !phone || !password || !code) {
+    return res.status(400).json({ error: 'All registration details and invitation code are required.' });
+  }
+
+  const db = loadDb();
+  const inviteIndex = db.lordPatronInvites.findIndex(i => i.code === code && !i.isUsed);
+  if (inviteIndex === -1) {
+    return res.status(400).json({ error: 'Invalid or expired Lord Patron invitation link code.' });
+  }
+
+  if (email === getAdminCredentials().email || db.members.some(m => m.email === email)) {
+    return res.status(400).json({ error: 'An account with this email already exists.' });
+  }
+
+  const newMemberId = 'lp-' + Math.random().toString(36).substr(2, 9);
+  const newLordPatron = {
+    id: newMemberId,
+    name,
+    classYear: 'Lord Patron',
+    email,
+    phone,
+    password,
+    role: 'lord_patron',
+    status: 'active', // Immediately active
+    joinedAt: new Date().toISOString().split('T')[0],
+    avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=c9a227`
+  };
+
+  db.members.push(newLordPatron);
+  db.lordPatronInvites[inviteIndex].isUsed = true;
+  db.lordPatronInvites[inviteIndex].usedBy = newMemberId;
+
+  saveDb(db);
+  res.json({ success: true, message: 'Lord Patron account activated successfully! You may now log in.' });
+});
+
+
+// 2. MEMBER MANAGEMENT API (Admin only)
+app.get('/api/members', (req, res) => {
+  const db = loadDb();
+  res.json(db.members);
+});
+
+app.post('/api/members/:id/approve', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const m = db.members.find(member => member.id === id);
+  if (m) {
+    m.status = 'active';
+    saveDb(db);
+    return res.json({ success: true, member: m });
+  }
+  res.status(404).json({ error: 'Member not found.' });
+});
+
+app.post('/api/members/:id/suspend', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const m = db.members.find(member => member.id === id);
+  if (m) {
+    m.status = 'suspended';
+    saveDb(db);
+    return res.json({ success: true, member: m });
+  }
+  res.status(404).json({ error: 'Member not found.' });
+});
+
+app.post('/api/members/:id/unsuspend', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const m = db.members.find(member => member.id === id);
+  if (m) {
+    m.status = 'active';
+    saveDb(db);
+    return res.json({ success: true, member: m });
+  }
+  res.status(404).json({ error: 'Member not found.' });
+});
+
+app.put('/api/members/:id', (req, res) => {
+  const { id } = req.params;
+  const { 
+    name, classYear, email, phone, avatarUrl,
+    position, isPatron, patronTitle, biography, 
+    workplace, jobTitle, achievements, socialLinks 
+  } = req.body;
+  
+  const db = loadDb();
+  const m = db.members.find(member => member.id === id);
+  if (m) {
+    if (name !== undefined) m.name = name;
+    if (classYear !== undefined) m.classYear = classYear;
+    if (email !== undefined) m.email = email;
+    if (phone !== undefined) m.phone = phone;
+    if (avatarUrl !== undefined) m.avatarUrl = avatarUrl;
+    if (position !== undefined) m.position = position;
+    if (isPatron !== undefined) m.isPatron = isPatron;
+    if (patronTitle !== undefined) m.patronTitle = patronTitle;
+    if (biography !== undefined) m.biography = biography;
+    if (workplace !== undefined) m.workplace = workplace;
+    if (jobTitle !== undefined) m.jobTitle = jobTitle;
+    if (achievements !== undefined) m.achievements = achievements;
+    if (socialLinks !== undefined) m.socialLinks = socialLinks;
+    
+    saveDb(db);
+    return res.json({ success: true, member: m });
+  }
+  res.status(404).json({ error: 'Member not found.' });
+});
+
+
+app.get('/api/db-status', (req, res) => {
+  res.json({ isPostgres });
+});
+
+app.post('/api/admin/flush', (req, res) => {
+  try {
+    const db = loadDb();
+    
+    // Retain non-demo admin accounts or genuine accounts created after deployment
+    const realAdminsAndMembers = db.members.filter(m => 
+      m.role === 'admin' || 
+      (!m.id.startsWith('dummy') && !m.id.startsWith('m-dummy') && !m.email.toLowerCase().includes('dummy') && !m.email.toLowerCase().includes('example.com'))
+    );
+
+    // Fallback default admin if no admin exists
+    if (realAdminsAndMembers.length === 0) {
+      realAdminsAndMembers.push({
+        id: 'admin-1',
+        name: 'Chancellor / Administrator',
+        email: 'admin@unithel.edu',
+        phone: '07068019293',
+        role: 'admin',
+        status: 'active',
+        joinedAt: new Date().toISOString().split('T')[0],
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb',
+        position: 'Chancellor',
+        isPatron: false,
+        patronTitle: '',
+        biography: 'President & Administrator of Unithel Academy',
+        workplace: 'UNITHEL ACADEMY',
+        jobTitle: 'Chancellor',
+        achievements: ['Academic Senate Leader'],
+        socialLinks: { linkedin: '', twitter: '' }
+      });
+    }
+
+    db.members = realAdminsAndMembers;
+    db.blogs = [];
+    db.news = [];
+    db.events = [];
+    db.discussions = [];
+    db.chatMessages = [];
+    db.ballots = [];
+    db.duesRecords = [];
+    db.lordPatronInvites = [];
+
+    saveDb(db);
+    return res.json({ 
+      success: true, 
+      message: 'Demo data has been successfully removed. You can now begin adding your real content.' 
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to flush database: ' + err.message });
+  }
+});
+
+
+// 3. BLOGS & NEWS API
+app.get('/api/blogs', (req, res) => {
+  const db = loadDb();
+  res.json(db.blogs);
+});
+
+app.post('/api/blogs', (req, res) => {
+  const { title, content, excerpt, image, category, isPinned, visibleOnHome } = req.body;
+  if (!title || !content) {
+    return res.status(400).json({ error: 'Title and content are required.' });
+  }
+
+  const db = loadDb();
+  const newBlog = {
+    id: 'b-' + Math.random().toString(36).substr(2, 9),
+    title,
+    content,
+    excerpt: excerpt || content.substring(0, 120) + '...',
+    image: image || 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e',
+    date: new Date().toISOString().split('T')[0],
+    category: category || 'General',
+    isPinned: !!isPinned,
+    visibleOnHome: visibleOnHome !== false,
+  };
+
+  db.blogs.unshift(newBlog);
+  saveDb(db);
+  res.json({ success: true, blog: newBlog });
+});
+
+app.put('/api/blogs/:id', (req, res) => {
+  const { id } = req.params;
+  const { title, content, excerpt, image, category, isPinned, visibleOnHome } = req.body;
+  const db = loadDb();
+  const blogIndex = db.blogs.findIndex(b => b.id === id);
+  if (blogIndex !== -1) {
+    db.blogs[blogIndex] = {
+      ...db.blogs[blogIndex],
+      title: title || db.blogs[blogIndex].title,
+      content: content || db.blogs[blogIndex].content,
+      excerpt: excerpt || db.blogs[blogIndex].excerpt,
+      image: image || db.blogs[blogIndex].image,
+      category: category || db.blogs[blogIndex].category,
+      isPinned: isPinned !== undefined ? isPinned : db.blogs[blogIndex].isPinned,
+      visibleOnHome: visibleOnHome !== undefined ? visibleOnHome : db.blogs[blogIndex].visibleOnHome,
+    };
+    saveDb(db);
+    return res.json({ success: true, blog: db.blogs[blogIndex] });
+  }
+  res.status(404).json({ error: 'Article not found.' });
+});
+
+app.delete('/api/blogs/:id', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const origLength = db.blogs.length;
+  db.blogs = db.blogs.filter(b => b.id !== id);
+  if (db.blogs.length < origLength) {
+    saveDb(db);
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: 'Article not found.' });
+});
+
+
+// 3.5 NEWS API
+app.get('/api/news', (req, res) => {
+  const db = loadDb();
+  res.json(db.news || []);
+});
+
+app.post('/api/news', (req, res) => {
+  const { title, content, isPinned } = req.body;
+  if (!title || !content) {
+    return res.status(400).json({ error: 'Title and content are required.' });
+  }
+
+  const db = loadDb();
+  if (!db.news) db.news = [];
+  const newNews = {
+    id: 'n-' + Math.random().toString(36).substr(2, 9),
+    title,
+    content,
+    date: new Date().toISOString().split('T')[0],
+    isPinned: !!isPinned
+  };
+
+  db.news.unshift(newNews);
+  saveDb(db);
+  res.json({ success: true, newsItem: newNews });
+});
+
+app.put('/api/news/:id', (req, res) => {
+  const { id } = req.params;
+  const { title, content, isPinned } = req.body;
+  const db = loadDb();
+  if (!db.news) db.news = [];
+  const newsIndex = db.news.findIndex(n => n.id === id);
+  if (newsIndex !== -1) {
+    db.news[newsIndex] = {
+      ...db.news[newsIndex],
+      title: title || db.news[newsIndex].title,
+      content: content || db.news[newsIndex].content,
+      isPinned: isPinned !== undefined ? isPinned : db.news[newsIndex].isPinned,
+    };
+    saveDb(db);
+    return res.json({ success: true, newsItem: db.news[newsIndex] });
+  }
+  res.status(404).json({ error: 'News item not found.' });
+});
+
+app.delete('/api/news/:id', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  if (!db.news) db.news = [];
+  const origLength = db.news.length;
+  db.news = db.news.filter(n => n.id !== id);
+  if (db.news.length < origLength) {
+    saveDb(db);
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: 'News item not found.' });
+});
+
+
+// 4. EVENTS API
+app.get('/api/events', (req, res) => {
+  const db = loadDb();
+  res.json(db.events);
+});
+
+app.post('/api/events', (req, res) => {
+  const { title, description, date, time, venue } = req.body;
+  if (!title || !date || !venue) {
+    return res.status(400).json({ error: 'Title, date and venue are required.' });
+  }
+  const db = loadDb();
+  const newEvent = {
+    id: 'e-' + Math.random().toString(36).substr(2, 9),
+    title,
+    description: description || '',
+    date,
+    time: time || '00:00',
+    venue,
+    registrations: []
+  };
+  db.events.push(newEvent);
+  saveDb(db);
+  res.json({ success: true, event: newEvent });
+});
+
+app.put('/api/events/:id', (req, res) => {
+  const { id } = req.params;
+  const { title, description, date, time, venue } = req.body;
+  const db = loadDb();
+  const ev = db.events.find(e => e.id === id);
+  if (ev) {
+    if (title) ev.title = title;
+    if (description) ev.description = description;
+    if (date) ev.date = date;
+    if (time) ev.time = time;
+    if (venue) ev.venue = venue;
+    saveDb(db);
+    return res.json({ success: true, event: ev });
+  }
+  res.status(404).json({ error: 'Event not found.' });
+});
+
+app.delete('/api/events/:id', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const origLength = db.events.length;
+  db.events = db.events.filter(e => e.id !== id);
+  if (db.events.length < origLength) {
+    saveDb(db);
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: 'Event not found.' });
+});
+
+app.post('/api/events/:id/register', (req, res) => {
+  const { id } = req.params;
+  const { memberId } = req.body;
+  if (!memberId) return res.status(400).json({ error: 'Member ID is required.' });
+
+  const db = loadDb();
+  const ev = db.events.find(e => e.id === id);
+  if (ev) {
+    if (!ev.registrations.includes(memberId)) {
+      ev.registrations.push(memberId);
+      saveDb(db);
+    }
+    return res.json({ success: true, event: ev });
+  }
+  res.status(404).json({ error: 'Event not found.' });
+});
+
+
+// 5. DISCUSSION FORUM API
+app.get('/api/discussions', (req, res) => {
+  const db = loadDb();
+  res.json(db.discussions);
+});
+
+app.post('/api/discussions', (req, res) => {
+  const { title, content, category, authorId, authorName, authorRole } = req.body;
+  if (!title || !content || !authorId || !authorName) {
+    return res.status(400).json({ error: 'All fields are required.' });
+  }
+  const db = loadDb();
+  const newDisc = {
+    id: 'd-' + Math.random().toString(36).substr(2, 9),
+    title,
+    content,
+    authorId,
+    authorName,
+    authorRole: authorRole || 'member',
+    category: category || 'General',
+    createdAt: new Date().toISOString(),
+    reactions: { '👍': [], '⚓': [], '👏': [], '💡': [] },
+    comments: [],
+    isLocked: false,
+    isPinned: false
+  };
+  db.discussions.unshift(newDisc);
+  saveDb(db);
+  res.json({ success: true, discussion: newDisc });
+});
+
+app.post('/api/discussions/:id/comments', (req, res) => {
+  const { id } = req.params;
+  const { content, authorId, authorName, authorRole } = req.body;
+  if (!content || !authorId || !authorName) {
+    return res.status(400).json({ error: 'All fields are required.' });
+  }
+
+  const db = loadDb();
+  const d = db.discussions.find(disc => disc.id === id);
+  if (d) {
+    if (d.isLocked) return res.status(403).json({ error: 'This topic has been locked by an administrator.' });
+
+    const newComment = {
+      id: 'c-' + Math.random().toString(36).substr(2, 9),
+      content,
+      authorId,
+      authorName,
+      authorRole: authorRole || 'member',
+      createdAt: new Date().toISOString(),
+      replies: []
+    };
+    d.comments.push(newComment);
+    saveDb(db);
+    return res.json({ success: true, discussion: d });
+  }
+  res.status(404).json({ error: 'Discussion not found.' });
+});
+
+app.post('/api/discussions/:discId/comments/:commentId/replies', (req, res) => {
+  const { discId, commentId } = req.params;
+  const { content, authorId, authorName, authorRole } = req.body;
+  if (!content || !authorId || !authorName) {
+    return res.status(400).json({ error: 'All fields are required.' });
+  }
+
+  const db = loadDb();
+  const d = db.discussions.find(disc => disc.id === discId);
+  if (d) {
+    if (d.isLocked) return res.status(403).json({ error: 'This topic is locked.' });
+    const c = d.comments.find(comment => comment.id === commentId);
+    if (c) {
+      const newReply = {
+        id: 'r-' + Math.random().toString(36).substr(2, 9),
+        content,
+        authorId,
+        authorName,
+        authorRole: authorRole || 'member',
+        createdAt: new Date().toISOString()
+      };
+      c.replies.push(newReply);
+      saveDb(db);
+      return res.json({ success: true, discussion: d });
+    }
+  }
+  res.status(404).json({ error: 'Discussion or comment not found.' });
+});
+
+app.post('/api/discussions/:id/react', (req, res) => {
+  const { id } = req.params;
+  const { emoji, memberId } = req.body;
+  if (!emoji || !memberId) return res.status(400).json({ error: 'Emoji and MemberId required' });
+
+  const db = loadDb();
+  const d = db.discussions.find(disc => disc.id === id);
+  if (d) {
+    if (!d.reactions[emoji]) {
+      d.reactions[emoji] = [];
+    }
+    const idx = d.reactions[emoji].indexOf(memberId);
+    if (idx === -1) {
+      d.reactions[emoji].push(memberId);
+    } else {
+      d.reactions[emoji].splice(idx, 1);
+    }
+    saveDb(db);
+    return res.json({ success: true, discussion: d });
+  }
+  res.status(404).json({ error: 'Discussion not found.' });
+});
+
+app.post('/api/discussions/:id/lock', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const d = db.discussions.find(disc => disc.id === id);
+  if (d) {
+    d.isLocked = !d.isLocked;
+    saveDb(db);
+    return res.json({ success: true, discussion: d });
+  }
+  res.status(404).json({ error: 'Discussion not found.' });
+});
+
+app.post('/api/discussions/:id/pin', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const d = db.discussions.find(disc => disc.id === id);
+  if (d) {
+    d.isPinned = !d.isPinned;
+    saveDb(db);
+    return res.json({ success: true, discussion: d });
+  }
+  res.status(404).json({ error: 'Discussion not found.' });
+});
+
+app.delete('/api/discussions/:id', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const len = db.discussions.length;
+  db.discussions = db.discussions.filter(disc => disc.id !== id);
+  if (db.discussions.length < len) {
+    saveDb(db);
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: 'Discussion not found.' });
+});
+
+
+// 6. DISPATCH CHAT API
+app.get('/api/chats/:channel', (req, res) => {
+  const { channel } = req.params;
+  const db = loadDb();
+  const messages = db.chatMessages.filter(msg => msg.channel === channel);
+  res.json(messages);
+});
+
+app.post('/api/chats', (req, res) => {
+  const { content, channel, authorId, authorName, authorRole } = req.body;
+  if (!content || !channel || !authorId || !authorName) {
+    return res.status(400).json({ error: 'All fields are required.' });
+  }
+  const db = loadDb();
+  const newMsg = {
+    id: 'cmsg-' + Math.random().toString(36).substr(2, 9),
+    content,
+    authorId,
+    authorName,
+    authorRole: authorRole || 'member',
+    createdAt: new Date().toISOString(),
+    channel,
+    isPinned: false
+  };
+  db.chatMessages.push(newMsg);
+  saveDb(db);
+  res.json({ success: true, message: newMsg });
+});
+
+app.delete('/api/chats/:id', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const len = db.chatMessages.length;
+  db.chatMessages = db.chatMessages.filter(msg => msg.id !== id);
+  if (db.chatMessages.length < len) {
+    saveDb(db);
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: 'Message not found.' });
+});
+
+app.post('/api/chats/:id/pin', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const m = db.chatMessages.find(msg => msg.id === id);
+  if (m) {
+    m.isPinned = !m.isPinned;
+    saveDb(db);
+    return res.json({ success: true, message: m });
+  }
+  res.status(404).json({ error: 'Message not found.' });
+});
+
+
+// 7. BALLOT & VOTING API
+app.get('/api/ballots', (req, res) => {
+  const db = loadDb();
+  res.json(db.ballots);
+});
+
+app.post('/api/ballots', (req, res) => {
+  const { title, description, type, options } = req.body;
+  if (!title || !description || !type || !options || !options.length) {
+    return res.status(400).json({ error: 'Title, description, type, and voting options are required.' });
+  }
+  const db = loadDb();
+  const newBallot = {
+    id: 'bal-' + Math.random().toString(36).substr(2, 9),
+    title,
+    description,
+    type,
+    options,
+    votes: {},
+    status: 'active',
+    resultsPublished: false,
+    createdAt: new Date().toISOString()
+  };
+  db.ballots.unshift(newBallot);
+  saveDb(db);
+  res.json({ success: true, ballot: newBallot });
+});
+
+app.post('/api/ballots/:id/vote', (req, res) => {
+  const { id } = req.params;
+  const { memberId, option } = req.body;
+  if (!memberId || !option) return res.status(400).json({ error: 'MemberId and option are required.' });
+
+  const db = loadDb();
+  const b = db.ballots.find(ballot => ballot.id === id);
+  if (b) {
+    if (b.status === 'closed') return res.status(400).json({ error: 'This ballot has already closed.' });
+    if (!b.options.includes(option)) return res.status(400).json({ error: 'Invalid option selected.' });
+
+    b.votes[memberId] = option;
+    saveDb(db);
+    return res.json({ success: true, ballot: b });
+  }
+  res.status(404).json({ error: 'Ballot not found.' });
+});
+
+app.post('/api/ballots/:id/close', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const b = db.ballots.find(ballot => ballot.id === id);
+  if (b) {
+    b.status = 'closed';
+    saveDb(db);
+    return res.json({ success: true, ballot: b });
+  }
+  res.status(404).json({ error: 'Ballot not found.' });
+});
+
+app.post('/api/ballots/:id/publish', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const b = db.ballots.find(ballot => ballot.id === id);
+  if (b) {
+    b.resultsPublished = !b.resultsPublished;
+    saveDb(db);
+    return res.json({ success: true, ballot: b });
+  }
+  res.status(404).json({ error: 'Ballot not found.' });
+});
+
+app.delete('/api/ballots/:id', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  const len = db.ballots.length;
+  db.ballots = db.ballots.filter(b => b.id !== id);
+  if (db.ballots.length < len) {
+    saveDb(db);
+    return res.json({ success: true });
+  }
+  res.status(404).json({ error: 'Ballot not found.' });
+});
+
+
+// 8. DUES & RECEIPTS MANAGEMENT API (Offline Contributions)
+app.get('/api/dues', (req, res) => {
+  const db = loadDb();
+  res.json(db.duesRecords);
+});
+
+app.post('/api/dues', (req, res) => {
+  const { memberId, memberName, months, amount, reference, remarks } = req.body;
+  if (!memberId || !memberName || !months || !months.length || !amount) {
+    return res.status(400).json({ error: 'Member, contribution months, and amount are required.' });
+  }
+
+  const db = loadDb();
+  const receiptNo = 'SH-' + Math.floor(100000 + Math.random() * 900000).toString();
+  const newRecord = {
+    id: 'due-' + Math.random().toString(36).substr(2, 9),
+    memberId,
+    memberName,
+    months,
+    amount: parseFloat(amount),
+    reference: reference || 'Offline Handover',
+    remarks: remarks || '',
+    date: new Date().toISOString().split('T')[0],
+    status: 'paid', // Recorded by admin is immediately marked paid
+    receiptNo
+  };
+
+  db.duesRecords.unshift(newRecord);
+  saveDb(db);
+  res.json({ success: true, record: newRecord });
+});
+
+
+// 9. LORD PATRON INVITATION API
+app.get('/api/lord-patron/invites', (req, res) => {
+  const db = loadDb();
+  res.json(db.lordPatronInvites);
+});
+
+app.post('/api/lord-patron/invites', (req, res) => {
+  const db = loadDb();
+  const code = 'SEAHAV-INV-' + Math.floor(100 + Math.random() * 900).toString() + Math.random().toString(36).substr(2, 4).toUpperCase();
+  const newInvite = {
+    code,
+    isUsed: false,
+    usedBy: null,
+    createdAt: new Date().toISOString()
+  };
+  db.lordPatronInvites.unshift(newInvite);
+  saveDb(db);
+  res.json({ success: true, invite: newInvite });
+});
+
+
+// 10. APPEARANCE & BRANDING API
+app.get('/api/appearance', (req, res) => {
+  const db = loadDb();
+  res.json(db.appearance);
+});
+
+app.post('/api/appearance', (req, res) => {
+  const db = loadDb();
+
+  // Merge incoming appearance updates including computed image settings
+  if (req.body && typeof req.body === 'object') {
+    db.appearance = {
+      ...db.appearance,
+      ...req.body
+    };
+  }
+
+  saveDb(db);
+  res.json({ success: true, appearance: db.appearance });
+});
+
+
+// --- SERVING ASSETS & VITE INTEGRATION ---
+
+async function bootstrap() {
+  // Handle API fallback properly
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Scholar Circle Server] running on http://localhost:${PORT}`);
+  });
+}
+
+bootstrap().catch(err => {
+  console.error('Failed to bootstrap server:', err);
+});
