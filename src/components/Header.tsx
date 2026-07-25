@@ -41,23 +41,36 @@ export default function Header({ currentView, setView, currentUser, onLogout, op
             onClick={() => handleNavClick('home')} 
             className="flex items-center space-x-2.5 cursor-pointer group shrink-0"
           >
-            <div className="p-2 bg-[#0D2B4E] border border-[#C9A227] shadow-[0_0_6px_rgba(201,162,39,0.2)] transition-transform group-hover:rotate-12 duration-300 flex items-center justify-center">
+            <div className={`transition-all group-hover:scale-105 duration-300 flex items-center justify-center ${
+              appearance?.logoStyle === 'transparent'
+                ? 'p-0 bg-transparent border-0'
+                : appearance?.logoStyle === 'circle'
+                ? 'p-1.5 bg-[#0D2B4E] border border-[#C9A227] rounded-full shadow-[0_0_8px_rgba(201,162,39,0.3)]'
+                : appearance?.logoStyle === 'rounded'
+                ? 'p-1.5 bg-[#0D2B4E] border border-[#C9A227] rounded-md shadow-[0_0_8px_rgba(201,162,39,0.3)]'
+                : 'p-1.5 bg-[#0D2B4E] border border-[#C9A227] shadow-[0_0_6px_rgba(201,162,39,0.2)]'
+            }`}>
               {appearance?.logoUrl ? (
                 <img 
                   src={appearance.logoUrl} 
-                  alt="Logo" 
-                  className="h-5 w-5 sm:h-6 sm:w-6 object-contain" 
+                  alt={appearance?.logoText || "Logo"} 
+                  className="object-contain" 
+                  style={{
+                    height: `${appearance?.logoHeight || 32}px`,
+                    maxHeight: '52px',
+                    objectFit: (appearance?.logoFit as any) || 'contain'
+                  }}
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <Compass className="h-5 w-5 sm:h-6 sm:w-6 text-[#C9A227]" />
+                <Compass className="text-[#C9A227]" style={{ height: `${appearance?.logoHeight || 28}px`, width: `${appearance?.logoHeight || 28}px` }} />
               )}
             </div>
             <div>
               <span className="block font-serif text-sm sm:text-base font-bold tracking-wider text-white group-hover:text-amber-200 uppercase leading-none">
                 {appearance?.logoText || 'UNITHEL ACADEMY'}
               </span>
-              <span className="block text-[8px] sm:text-[9px] uppercase font-sans tracking-[0.2em] text-gray-300 mt-0.5">
+              <span className="block text-[8px] sm:text-[9px] uppercase font-sans tracking-[0.2em] text-amber-400 mt-1 font-bold">
                 {appearance?.logoSubtext || 'ALUMNI ORGANIZATION'}
               </span>
             </div>

@@ -60,12 +60,21 @@ export default function HomeView({ setView, blogs, events, appearance, openAuthM
         <div className="max-w-md mx-auto sm:max-w-xl md:max-w-3xl text-center relative z-10 space-y-4">
           {/* LARGE LOGO AT THE START OF THE SITE */}
           <div className="flex justify-center mb-5">
-            <div className="p-3.5 bg-[#0D2B4E]/90 border-2 border-[#C9A227] shadow-[0_0_15px_rgba(201,162,39,0.4)] rounded-none flex items-center justify-center backdrop-blur-sm">
+            <div className={`flex items-center justify-center backdrop-blur-sm ${
+              appearance.logoStyle === 'transparent'
+                ? 'p-0 bg-transparent border-0'
+                : appearance.logoStyle === 'circle'
+                ? 'p-3.5 bg-[#0D2B4E]/90 border-2 border-[#C9A227] shadow-[0_0_15px_rgba(201,162,39,0.4)] rounded-full'
+                : appearance.logoStyle === 'rounded'
+                ? 'p-3.5 bg-[#0D2B4E]/90 border-2 border-[#C9A227] shadow-[0_0_15px_rgba(201,162,39,0.4)] rounded-2xl'
+                : 'p-3.5 bg-[#0D2B4E]/90 border-2 border-[#C9A227] shadow-[0_0_15px_rgba(201,162,39,0.4)] rounded-none'
+            }`}>
               {appearance.logoUrl ? (
                 <img 
                   src={appearance.logoUrl} 
-                  alt="Scholar Circle Logo" 
+                  alt={appearance.logoText || "Organization Logo"} 
                   className="h-16 w-16 sm:h-24 sm:w-24 object-contain" 
+                  style={{ objectFit: (appearance.logoFit as any) || 'contain' }}
                   referrerPolicy="no-referrer"
                 />
               ) : (
@@ -75,7 +84,7 @@ export default function HomeView({ setView, blogs, events, appearance, openAuthM
           </div>
 
           <span className="inline-block text-[10px] sm:text-[11px] font-black font-sans tracking-[0.25em] uppercase bg-[#C9A227]/25 text-[#C9A227] px-4 py-1.5 border border-[#C9A227]/60 shadow-md">
-            UNITHEL ACADEMY ALUMNI ORGANIZATION
+            {appearance.logoText ? `${appearance.logoText} ${appearance.logoSubtext || ''}` : 'UNITHEL ACADEMY ALUMNI ORGANIZATION'}
           </span>
           <h1 className="font-serif text-xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight uppercase text-amber-100">
             {appearance.heroTitle || 'UNITHEL ACADEMY ALUMNI ORGANIZATION'}

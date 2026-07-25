@@ -108,7 +108,10 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   const [brandingForm, setBrandingForm] = useState({
     logoUrl: '',
     logoText: 'UNITHEL ACADEMY',
-    logoSubtext: 'ALUMNI ORGANIZATION'
+    logoSubtext: 'ALUMNI ORGANIZATION',
+    logoHeight: 32,
+    logoStyle: 'framed' as 'transparent' | 'framed' | 'rounded' | 'circle',
+    logoFit: 'contain' as 'contain' | 'cover'
   });
 
   // Public Leaders state
@@ -175,7 +178,10 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       setBrandingForm({
         logoUrl: appData.logoUrl || '',
         logoText: appData.logoText || 'UNITHEL ACADEMY',
-        logoSubtext: appData.logoSubtext || 'ALUMNI ORGANIZATION'
+        logoSubtext: appData.logoSubtext || 'ALUMNI ORGANIZATION',
+        logoHeight: appData.logoHeight || 32,
+        logoStyle: (appData.logoStyle as any) || 'framed',
+        logoFit: (appData.logoFit as any) || 'contain'
       });
     } catch (e: any) {
       console.error(e);
@@ -502,24 +508,36 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   };
 
   // 10. Logo & Branding Customization
-  const handleSaveBranding = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveBranding = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
     try {
-      const res = await api.updateAppearance({
-        ...appearance,
+      const payload = {
+        ...(appearance || {}),
         logoUrl: brandingForm.logoUrl,
         logoText: brandingForm.logoText,
-        logoSubtext: brandingForm.logoSubtext
-      });
+        logoSubtext: brandingForm.logoSubtext,
+        logoHeight: Number(brandingForm.logoHeight),
+        logoStyle: brandingForm.logoStyle,
+        logoFit: brandingForm.logoFit
+      };
+
+      const res = await api.updateAppearance(payload);
 
       if (res.success) {
-        if (res.appearance) setAppearance(res.appearance);
-        triggerFeedback('Custom logo & branding configurations synchronized.');
+        if (res.appearance) {
+          setAppearance(res.appearance);
+        }
+        triggerFeedback('Custom logo & brand elements synchronized & published live to the entire portal!');
         await loadAdminData();
         await onRefreshData();
+      } else {
+        triggerFeedback('Failed to synchronize branding configurations.', 'error');
       }
     } catch (err: any) {
-      triggerFeedback(err.message, 'error');
+      console.error('Branding save error:', err);
+      triggerFeedback('Error saving brand elements: ' + (err.message || 'Unknown error'), 'error');
     }
   };
 
@@ -2586,84 +2604,316 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                 </div>
               )}
 
-              {/* SECTION 9: LOGO & BRANDING CUSTOMIZATION */}
+              {/* SECTION 9: LOGO & BRANDING CUSTOMIZATION STUDIO */}
               {activeTab === 'branding' && (
                 <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
-                  <div className="border-b pb-3 border-gray-100">
-                    <h2 className="font-serif font-bold text-base text-[#0A1F44] uppercase tracking-wide">Logo & Visual Branding Management</h2>
-                    <p className="text-xs text-gray-500">Alter visual brand icons and top typography styles dynamically.</p>
-                  </div>
-
-                  <form onSubmit={handleSaveBranding} className="space-y-4 text-xs font-sans max-w-xl">
+                  <div className="border-b pb-4 border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                      <label className="block font-bold text-gray-700 uppercase mb-1">Custom Logo Image URL</label>
-                      <input
-                        type="text"
-                        value={brandingForm.logoUrl}
-                        onChange={(e) => setBrandingForm({ ...brandingForm, logoUrl: e.target.value })}
-                        placeholder="e.g. https://domain.com/logo.png"
-                        className="w-full bg-[#F5F1E8] border border-gray-300 px-3 py-2 focus:outline-none focus:border-[#C9A227]"
-                      />
-                      <div className="mt-2 flex items-center space-x-3">
-                        <label className="flex items-center space-x-2 px-3 py-1.5 bg-[#0A1F44] hover:bg-[#C9A227] text-white hover:text-[#0A1F44] font-bold rounded-none text-[10px] tracking-wide cursor-pointer transition-all">
-                          <Upload className="h-3.5 w-3.5" />
-                          <span>Upload Logo from Gallery</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                try {
-                                  const compressed = await compressImageFile(file, 800, 800, 0.9);
-                                  setBrandingForm(prev => ({ ...prev, logoUrl: compressed }));
-                                } catch (err) {
-                                  alert("Could not process logo file. Please try another file.");
-                                }
-                              }
-                            }}
-                          />
-                        </label>
-                        {brandingForm.logoUrl && (
-                          <span className="text-[10px] text-emerald-600 font-bold flex items-center space-x-1">
-                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
-                            <span>Logo Ready!</span>
-                          </span>
-                        )}
+                      <div className="flex items-center space-x-2">
+                        <Upload className="h-5 w-5 text-[#C9A227]" />
+                        <h2 className="font-serif font-bold text-base text-[#0A1F44] uppercase tracking-wide">
+                          Official Logo & Visual Branding Studio
+                        </h2>
                       </div>
-                      <p className="text-[10px] text-gray-500 mt-1">If blank, standard Admiralty Compass icon gets displayed.</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block font-bold text-gray-700 uppercase mb-1">Primary Logo Text Title</label>
-                        <input
-                          type="text"
-                          required
-                          value={brandingForm.logoText}
-                          onChange={(e) => setBrandingForm({ ...brandingForm, logoText: e.target.value })}
-                          className="w-full bg-[#F5F1E8] border border-gray-300 px-3 py-2 focus:outline-none focus:border-[#C9A227]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-bold text-gray-700 uppercase mb-1">Subtext Under Logo Title</label>
-                        <input
-                          type="text"
-                          required
-                          value={brandingForm.logoSubtext}
-                          onChange={(e) => setBrandingForm({ ...brandingForm, logoSubtext: e.target.value })}
-                          className="w-full bg-[#F5F1E8] border border-gray-300 px-3 py-2 focus:outline-none focus:border-[#C9A227]"
-                        />
-                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Upload custom organization logos, set display dimensions, and update brand titles across the top header, portal, and footer.
+                      </p>
                     </div>
 
                     <button
-                      type="submit"
-                      className="px-4 py-2.5 bg-[#0A1F44] text-[#C9A227] border-2 border-[#C9A227] uppercase font-bold tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44] transition-colors"
+                      onClick={handleSaveBranding}
+                      className="px-5 py-2.5 bg-[#0A1F44] text-[#C9A227] border-2 border-[#C9A227] uppercase font-bold text-xs tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44] transition-all flex items-center justify-center space-x-2 shadow-md shrink-0"
                     >
-                      Update Brand Elements
+                      <CheckCircle className="h-4 w-4" />
+                      <span>Save & Publish Brand Identity Live</span>
                     </button>
+                  </div>
+
+                  {/* 1. REAL-TIME LIVE PREVIEW PANEL */}
+                  <div className="bg-[#0A1F44] text-white p-5 border-2 border-[#C9A227] space-y-4 shadow-lg">
+                    <div className="flex items-center justify-between border-b border-[#C9A227]/30 pb-2">
+                      <div className="flex items-center space-x-2">
+                        <Globe className="h-4 w-4 text-[#C9A227]" />
+                        <span className="font-serif font-bold text-xs uppercase tracking-wider text-amber-200">
+                          Live Brand Appearance Preview
+                        </span>
+                      </div>
+                      <span className="text-[9px] bg-[#C9A227]/20 text-[#C9A227] px-2 py-0.5 font-mono font-bold uppercase border border-[#C9A227]/40">
+                        Interactive Render
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+                      {/* Top Header Mockup */}
+                      <div className="bg-[#0D2B4E] p-3 border border-[#C9A227]/40 space-y-2">
+                        <span className="text-[10px] text-amber-300 font-mono font-bold uppercase block">
+                          Navbar Preview:
+                        </span>
+                        <div className="bg-[#0A1F44] border-b-2 border-[#C9A227] p-3 flex items-center justify-between">
+                          <div className="flex items-center space-x-2.5">
+                            <div className={`flex items-center justify-center transition-all ${
+                              brandingForm.logoStyle === 'transparent'
+                                ? 'p-0 bg-transparent border-0'
+                                : brandingForm.logoStyle === 'circle'
+                                ? 'p-1.5 bg-[#0D2B4E] border border-[#C9A227] rounded-full'
+                                : brandingForm.logoStyle === 'rounded'
+                                ? 'p-1.5 bg-[#0D2B4E] border border-[#C9A227] rounded-md'
+                                : 'p-1.5 bg-[#0D2B4E] border border-[#C9A227]'
+                            }`}>
+                              {brandingForm.logoUrl ? (
+                                <img 
+                                  src={brandingForm.logoUrl} 
+                                  alt="Logo Preview" 
+                                  className="object-contain" 
+                                  style={{
+                                    height: `${brandingForm.logoHeight || 32}px`,
+                                    maxHeight: '48px',
+                                    objectFit: brandingForm.logoFit
+                                  }}
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <Compass className="text-[#C9A227]" style={{ height: `${brandingForm.logoHeight || 28}px`, width: `${brandingForm.logoHeight || 28}px` }} />
+                              )}
+                            </div>
+                            <div>
+                              <span className="block font-serif text-xs sm:text-sm font-bold tracking-wider text-white uppercase leading-none">
+                                {brandingForm.logoText || 'UNITHEL ACADEMY'}
+                              </span>
+                              <span className="block text-[8px] uppercase font-sans tracking-[0.2em] text-amber-400 mt-1 font-bold">
+                                {brandingForm.logoSubtext || 'ALUMNI ORGANIZATION'}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[9px] bg-amber-500/20 text-amber-300 px-2 py-1 uppercase font-bold border border-amber-500/40">Nav Links</span>
+                        </div>
+                      </div>
+
+                      {/* Hero / Badge Mockup */}
+                      <div className="bg-[#0D2B4E] p-3 border border-[#C9A227]/40 space-y-2">
+                        <span className="text-[10px] text-amber-300 font-mono font-bold uppercase block">
+                          Home Hero Display Preview:
+                        </span>
+                        <div className="bg-[#F5F1E8] text-[#0A1F44] p-4 text-center border border-gray-300 space-y-2">
+                          <div className="flex justify-center">
+                            <div className={`flex items-center justify-center ${
+                              brandingForm.logoStyle === 'transparent'
+                                ? 'p-0 bg-transparent border-0'
+                                : brandingForm.logoStyle === 'circle'
+                                ? 'p-2 bg-[#0D2B4E] border-2 border-[#C9A227] rounded-full'
+                                : brandingForm.logoStyle === 'rounded'
+                                ? 'p-2 bg-[#0D2B4E] border-2 border-[#C9A227] rounded-xl'
+                                : 'p-2 bg-[#0D2B4E] border-2 border-[#C9A227]'
+                            }`}>
+                              {brandingForm.logoUrl ? (
+                                <img 
+                                  src={brandingForm.logoUrl} 
+                                  alt="Hero Logo Preview" 
+                                  className="h-10 w-10 object-contain" 
+                                  style={{ objectFit: brandingForm.logoFit }}
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <Compass className="h-10 w-10 text-[#C9A227]" />
+                              )}
+                            </div>
+                          </div>
+                          <span className="inline-block text-[9px] font-bold uppercase bg-[#0A1F44] text-[#C9A227] px-3 py-1 tracking-widest">
+                            {brandingForm.logoText} {brandingForm.logoSubtext}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. FORM & FILE UPLOAD CONTROLS */}
+                  <form onSubmit={handleSaveBranding} className="space-y-6 text-xs font-sans">
+                    
+                    {/* Logo Image Upload Box */}
+                    <div className="bg-[#F5F1E8] p-5 border border-gray-300 space-y-4">
+                      <h3 className="font-serif font-bold text-xs uppercase text-[#0A1F44] tracking-wider border-b border-gray-300 pb-2">
+                        📷 Logo Image File & Source Setup
+                      </h3>
+
+                      <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6">
+                        {/* Logo Thumbnail Preview */}
+                        <div className="h-24 w-24 bg-[#0A1F44] border-2 border-[#C9A227] flex items-center justify-center shrink-0 shadow-md relative group overflow-hidden">
+                          {brandingForm.logoUrl ? (
+                            <img 
+                              src={brandingForm.logoUrl} 
+                              alt="Current Logo" 
+                              className="w-full h-full object-contain p-2" 
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <Compass className="h-12 w-12 text-[#C9A227]" />
+                          )}
+                          {brandingForm.logoUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setBrandingForm(prev => ({ ...prev, logoUrl: '' }))}
+                              className="absolute inset-0 bg-red-900/80 text-white font-bold text-[10px] uppercase opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                              title="Clear Logo"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="space-y-3 w-full">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <label className="px-4 py-2 bg-[#0A1F44] hover:bg-[#C9A227] text-white hover:text-[#0A1F44] font-bold uppercase text-xs tracking-wider cursor-pointer transition-all inline-flex items-center space-x-2 shadow-sm">
+                              <Upload className="h-4 w-4" />
+                              <span>Upload New Logo File</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    try {
+                                      const compressed = await compressImageFile(file, 800, 800, 0.9);
+                                      setBrandingForm(prev => ({ ...prev, logoUrl: compressed }));
+                                      triggerFeedback("Logo file uploaded & compressed! Click 'Save & Publish' to save changes live.");
+                                    } catch (err) {
+                                      alert("Could not process logo file. Please try another image.");
+                                    }
+                                  }
+                                }}
+                              />
+                            </label>
+
+                            {brandingForm.logoUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setBrandingForm(prev => ({ ...prev, logoUrl: '' }))}
+                                className="px-3 py-2 bg-gray-200 hover:bg-red-100 text-gray-700 hover:text-red-700 font-bold uppercase text-xs tracking-wider transition-colors"
+                              >
+                                Clear Logo Image
+                              </button>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
+                              Or Paste Direct Image Web URL:
+                            </label>
+                            <input
+                              type="text"
+                              value={brandingForm.logoUrl}
+                              onChange={(e) => setBrandingForm({ ...brandingForm, logoUrl: e.target.value })}
+                              placeholder="e.g. https://yourdomain.com/assets/logo.png"
+                              className="w-full bg-white border border-gray-300 px-3 py-2 focus:outline-none focus:border-[#C9A227] text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Logo Dimensions & Frame Controls */}
+                    <div className="bg-[#0A1F44] text-white p-5 border-2 border-[#C9A227] space-y-4">
+                      <h3 className="font-serif font-bold text-xs uppercase text-amber-200 tracking-wider border-b border-[#C9A227]/30 pb-2">
+                        📐 Logo Display Dimensions & Framing Options
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {/* Height slider */}
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-300 mb-1">
+                            Navbar Logo Height: <span className="text-[#C9A227] font-mono">{brandingForm.logoHeight}px</span>
+                          </label>
+                          <input
+                            type="range"
+                            min="20"
+                            max="56"
+                            step="2"
+                            value={brandingForm.logoHeight}
+                            onChange={(e) => setBrandingForm({ ...brandingForm, logoHeight: Number(e.target.value) })}
+                            className="w-full accent-[#C9A227] cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Framing Style */}
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-300 mb-1">
+                            Logo Container Frame
+                          </label>
+                          <select
+                            value={brandingForm.logoStyle}
+                            onChange={(e) => setBrandingForm({ ...brandingForm, logoStyle: e.target.value as any })}
+                            className="w-full bg-[#0D2B4E] border border-gray-600 px-3 py-2 text-white text-xs focus:outline-none focus:border-[#C9A227]"
+                          >
+                            <option value="framed">Navy Box + Gold Border (Default)</option>
+                            <option value="transparent">Transparent Clean (No Frame Box)</option>
+                            <option value="rounded">Soft Rounded Frame</option>
+                            <option value="circle">Circular Shield Badge</option>
+                          </select>
+                        </div>
+
+                        {/* Fit Mode */}
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-300 mb-1">
+                            Image Object Fit
+                          </label>
+                          <select
+                            value={brandingForm.logoFit}
+                            onChange={(e) => setBrandingForm({ ...brandingForm, logoFit: e.target.value as any })}
+                            className="w-full bg-[#0D2B4E] border border-gray-600 px-3 py-2 text-white text-xs focus:outline-none focus:border-[#C9A227]"
+                          >
+                            <option value="contain">Contain (Preserves Full Logo)</option>
+                            <option value="cover">Cover (Fills Entire Frame Box)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Brand Titles & Typography */}
+                    <div className="bg-[#F5F1E8] p-5 border border-gray-300 space-y-4">
+                      <h3 className="font-serif font-bold text-xs uppercase text-[#0A1F44] tracking-wider border-b border-gray-300 pb-2">
+                        ✍️ Brand Typography & Name Titles
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block font-bold text-gray-700 uppercase mb-1">
+                            Primary Organization Brand Title *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={brandingForm.logoText}
+                            onChange={(e) => setBrandingForm({ ...brandingForm, logoText: e.target.value })}
+                            placeholder="e.g. UNITHEL ACADEMY"
+                            className="w-full bg-white border border-gray-300 px-3 py-2 focus:outline-none focus:border-[#C9A227] font-serif font-bold text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-gray-700 uppercase mb-1">
+                            Subtext / Tagline Under Brand Title *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={brandingForm.logoSubtext}
+                            onChange={(e) => setBrandingForm({ ...brandingForm, logoSubtext: e.target.value })}
+                            placeholder="e.g. ALUMNI ORGANIZATION"
+                            className="w-full bg-white border border-gray-300 px-3 py-2 focus:outline-none focus:border-[#C9A227] text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 text-right">
+                      <button
+                        type="submit"
+                        className="px-6 py-3 bg-[#0A1F44] text-[#C9A227] border-2 border-[#C9A227] uppercase font-bold text-xs tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44] transition-all inline-flex items-center space-x-2 shadow-md"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        <span>Save & Publish Brand Identity Live</span>
+                      </button>
+                    </div>
                   </form>
                 </div>
               )}

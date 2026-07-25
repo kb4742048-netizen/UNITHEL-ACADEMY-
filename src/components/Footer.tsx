@@ -1,11 +1,13 @@
 import React from 'react';
 import { Compass, Mail, MapPin, MessageSquare, PhoneCall } from 'lucide-react';
+import { WebsiteAppearance } from '../types';
 
 interface FooterProps {
   setView: (view: string) => void;
+  appearance?: WebsiteAppearance | null;
 }
 
-export default function Footer({ setView }: FooterProps) {
+export default function Footer({ setView, appearance }: FooterProps) {
   const whatsAppGroupLink = 'https://chat.whatsapp.com/BUFcRgyJ1In590VagfBfBf?s=cl&p=a&ilr=0';
 
   return (
@@ -15,11 +17,39 @@ export default function Footer({ setView }: FooterProps) {
           
           {/* Col 1: Brand & Logo */}
           <div className="space-y-3">
-            <div className="flex items-center space-x-2">
-              <div className="p-1.5 bg-[#0D2B4E] border border-[#C9A227]">
-                <Compass className="h-5 w-5 text-[#C9A227]" />
+            <div className="flex items-center space-x-2.5">
+              <div className={`flex items-center justify-center ${
+                appearance?.logoStyle === 'transparent'
+                  ? 'p-0 bg-transparent border-0'
+                  : appearance?.logoStyle === 'circle'
+                  ? 'p-1.5 bg-[#0D2B4E] border border-[#C9A227] rounded-full'
+                  : appearance?.logoStyle === 'rounded'
+                  ? 'p-1.5 bg-[#0D2B4E] border border-[#C9A227] rounded-md'
+                  : 'p-1.5 bg-[#0D2B4E] border border-[#C9A227]'
+              }`}>
+                {appearance?.logoUrl ? (
+                  <img 
+                    src={appearance.logoUrl} 
+                    alt={appearance?.logoText || "Logo"} 
+                    className="object-contain" 
+                    style={{
+                      height: `${Math.min(appearance?.logoHeight || 28, 40)}px`,
+                      objectFit: (appearance?.logoFit as any) || 'contain'
+                    }}
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <Compass className="h-5 w-5 text-[#C9A227]" />
+                )}
               </div>
-              <span className="font-serif text-sm font-bold tracking-wider uppercase">UNITHEL ACADEMY ALUMNI ORGANIZATION</span>
+              <div>
+                <span className="block font-serif text-xs sm:text-sm font-bold tracking-wider uppercase leading-none">
+                  {appearance?.logoText || 'UNITHEL ACADEMY'}
+                </span>
+                <span className="block text-[8px] uppercase font-sans tracking-[0.15em] text-amber-400 mt-1 font-semibold">
+                  {appearance?.logoSubtext || 'ALUMNI ORGANIZATION'}
+                </span>
+              </div>
             </div>
             <p className="text-[11px] text-gray-300 leading-relaxed text-justify">
               The official alumni network of Unithel Academy (Opolo Yenagoa, Bayelsa State). Dedicated to maintaining lifelong connections, mentorship, academic grants, and professional excellence.

@@ -32,6 +32,9 @@ interface DatabaseSchema {
     logoUrl: string;
     logoText?: string;
     logoSubtext?: string;
+    logoHeight?: number;
+    logoStyle?: string;
+    logoFit?: string;
     heroTitle: string;
     heroSubtitle: string;
     heroBannerUrl: string;
@@ -174,6 +177,9 @@ const defaultDb: DatabaseSchema = {
     logoUrl: '',
     logoText: 'UNITHEL ACADEMY',
     logoSubtext: 'ALUMNI ORGANIZATION',
+    logoHeight: 32,
+    logoStyle: 'framed',
+    logoFit: 'contain',
     heroTitle: 'UNITHEL ACADEMY ALUMNI ORGANIZATION',
     heroSubtitle: 'Connecting generations of Unithel Academy graduates, distinguished scholars, and academic patrons to foster lifelong excellence and mutual growth.',
     heroBannerUrl: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87',

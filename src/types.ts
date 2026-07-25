@@ -153,6 +153,9 @@ export interface WebsiteAppearance {
   logoUrl: string;
   logoText?: string;
   logoSubtext?: string;
+  logoHeight?: number; // e.g., 28-64
+  logoStyle?: 'transparent' | 'framed' | 'rounded' | 'circle';
+  logoFit?: 'contain' | 'cover';
   heroTitle: string;
   heroSubtitle: string;
   heroBannerUrl: string;

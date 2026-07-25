@@ -25,12 +25,24 @@ export default function PortalHeader({ currentUser, currentView, setView, onLogo
             onClick={() => setView('dashboard')} 
             className="flex items-center space-x-2.5 cursor-pointer group shrink-0"
           >
-            <div className="p-1.5 bg-[#0D2B4E] border border-[#C9A227] shadow-[0_0_6px_rgba(201,162,39,0.2)]">
+            <div className={`transition-all group-hover:scale-105 duration-300 flex items-center justify-center ${
+              appearance?.logoStyle === 'transparent'
+                ? 'p-0 bg-transparent border-0'
+                : appearance?.logoStyle === 'circle'
+                ? 'p-1 bg-[#0D2B4E] border border-[#C9A227] rounded-full shadow-[0_0_8px_rgba(201,162,39,0.3)]'
+                : appearance?.logoStyle === 'rounded'
+                ? 'p-1 bg-[#0D2B4E] border border-[#C9A227] rounded-md shadow-[0_0_8px_rgba(201,162,39,0.3)]'
+                : 'p-1 bg-[#0D2B4E] border border-[#C9A227] shadow-[0_0_6px_rgba(201,162,39,0.2)]'
+            }`}>
               {appearance?.logoUrl ? (
                 <img 
                   src={appearance.logoUrl} 
-                  alt="Logo" 
-                  className="h-4.5 w-4.5 object-contain" 
+                  alt={appearance?.logoText || "Logo"} 
+                  className="object-contain" 
+                  style={{
+                    height: `${Math.min(appearance?.logoHeight || 28, 40)}px`,
+                    objectFit: (appearance?.logoFit as any) || 'contain'
+                  }}
                   referrerPolicy="no-referrer"
                 />
               ) : (
@@ -42,7 +54,7 @@ export default function PortalHeader({ currentUser, currentView, setView, onLogo
                 {appearance?.logoText || 'UNITHEL ACADEMY'}
               </span>
               <span className="block text-[8px] uppercase font-sans tracking-[0.15em] text-amber-400 mt-0.5 font-semibold">
-                ALUMNI WORKSPACE
+                {appearance?.logoSubtext ? `${appearance.logoSubtext} WORKSPACE` : 'ALUMNI WORKSPACE'}
               </span>
             </div>
           </div>

@@ -268,7 +268,7 @@ export default function App() {
 
       {/* 3. FOOTER */}
       {currentView !== 'admin-console' && currentView !== 'dashboard' && (
-        <Footer setView={setView} />
+        <Footer setView={setView} appearance={appearance} />
       )}
 
       {/* 4. AUTHENTICATION POPUP DIALOG */}
