@@ -5,7 +5,7 @@ import {
   DollarSign, Activity, Edit3, Shield, Menu, ChevronLeft, ChevronRight, 
   RefreshCw, Database, Info, Upload, Key, ListFilter, X, LogOut, Globe, Camera
 } from 'lucide-react';
-import { Member, Blog, Event, Discussion, Ballot, DuesRecord, LordPatronInvite, WebsiteAppearance, News } from '../types';
+import { Member, Blog, Event, Discussion, Ballot, DuesRecord, LordPatronInvite, WebsiteAppearance, News, LeadershipMember } from '../types';
 import * as api from '../api';
 import { getMilitaryInsignia, getMemberTitle, OFFICIAL_POSITIONS, AVAILABLE_POSITIONS } from '../utils/ranks';
 import { compressImageFile } from '../utils/imageCompressor';
@@ -111,6 +111,14 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     logoSubtext: 'ALUMNI ORGANIZATION'
   });
 
+  // Public Leaders state
+  const [leadersList, setLeadersList] = useState<LeadershipMember[]>([]);
+  const [newLeader, setNewLeader] = useState<LeadershipMember>({
+    name: '',
+    position: '',
+    image: ''
+  });
+
   // State filters
   const [memberFilter, setMemberFilter] = useState<'all' | 'pending' | 'active' | 'suspended'>('all');
   const [memberSearch, setMemberSearch] = useState('');
@@ -147,6 +155,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       setAppearance(appData);
       setNews(newsData);
       setIsPostgres(dbStatus.isPostgres);
+      setLeadersList(appData.leaders || []);
 
       setAppForm({
         heroTitle: appData.heroTitle || '',
@@ -514,6 +523,43 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     }
   };
 
+  // 11. Public Executive Leaders Management
+  const handleSaveLeaders = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    try {
+      const res = await api.updateAppearance({
+        ...appearance,
+        leaders: leadersList
+      });
+
+      if (res.success) {
+        if (res.appearance) setAppearance(res.appearance);
+        triggerFeedback('Public Executive Leaders posted and published to public site successfully!');
+        await loadAdminData();
+        await onRefreshData();
+      }
+    } catch (err: any) {
+      triggerFeedback(err.message, 'error');
+    }
+  };
+
+  const handleAddLeader = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLeader.name.trim() || !newLeader.position.trim()) {
+      triggerFeedback('Leader Name and Official Position Title are required.', 'error');
+      return;
+    }
+    const defaultImage = newLeader.image.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb';
+    setLeadersList([...leadersList, { ...newLeader, image: defaultImage }]);
+    setNewLeader({ name: '', position: '', image: '' });
+    triggerFeedback('New leader added to roster list! Click "Publish Leaders to Public Site" to save changes live.');
+  };
+
+  const handleRemoveLeader = (index: number) => {
+    setLeadersList(leadersList.filter((_, i) => i !== index));
+    triggerFeedback('Leader removed from roster list.');
+  };
+
   // Database Connection trigger force reload
   const handleDatabaseForceSync = async () => {
     try {
@@ -574,6 +620,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     { id: 'events', label: 'Gatherings & Events', icon: Calendar, group: 'Management' },
     { id: 'forums', label: 'Forum Moderation', icon: Compass, group: 'Control' },
     { id: 'voting', label: 'Ballot Decisions', icon: Shield, group: 'Control' },
+    { id: 'public_leaders', label: 'Public Site Leaders', icon: Award, group: 'Customization' },
     { id: 'appearance', label: 'Site Settings', icon: Settings, group: 'Customization' },
     { id: 'branding', label: 'Logo & Branding', icon: Upload, group: 'Customization' },
     { id: 'database', label: 'Database / Analytics', icon: Database, group: 'System' },
@@ -2011,6 +2058,254 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                 </div>
               )}
 
+              {/* SECTION: PUBLIC SITE LEADERS MANAGEMENT */}
+              {activeTab === 'public_leaders' && (
+                <div className="space-y-6">
+                  <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
+                    <div className="border-b pb-4 border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <Award className="h-5 w-5 text-[#C9A227]" />
+                          <h2 className="font-serif font-bold text-base text-[#0A1F44] uppercase tracking-wide">
+                            Public Executive Leaders Management
+                          </h2>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Post, feature, and edit executive officers displayed publicly on the Home and About pages.
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={handleSaveLeaders}
+                        className="px-5 py-2.5 bg-[#0A1F44] text-[#C9A227] border-2 border-[#C9A227] uppercase font-bold text-xs tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44] transition-all flex items-center justify-center space-x-2 shadow-sm shrink-0"
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                        <span>Publish Leaders to Public Site</span>
+                      </button>
+                    </div>
+
+                    {/* Form to Add New Leader */}
+                    <form onSubmit={handleAddLeader} className="bg-[#F5F1E8] p-5 border border-gray-300 space-y-4">
+                      <h3 className="font-serif font-bold text-xs uppercase text-[#0A1F44] tracking-wider border-b border-gray-300 pb-2">
+                        ➕ Add Executive Officer to Public Roster
+                      </h3>
+
+                      {/* Quick Select Member option */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                          Quick Import Registered Active Member (Optional):
+                        </label>
+                        <select
+                          onChange={(e) => {
+                            const selectedId = e.target.value;
+                            if (selectedId) {
+                              const found = members.find(m => m.id === selectedId);
+                              if (found) {
+                                setNewLeader({
+                                  name: found.name,
+                                  position: found.position || 'Executive Member',
+                                  image: found.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde'
+                                });
+                              }
+                            }
+                          }}
+                          defaultValue=""
+                          className="w-full bg-white border border-gray-300 px-3 py-2 text-xs focus:outline-none focus:border-[#C9A227]"
+                        >
+                          <option value="">-- Choose registered member to auto-fill --</option>
+                          {members.filter(m => m.status === 'active').map(m => (
+                            <option key={m.id} value={m.id}>
+                              {m.name} ({m.position || 'Member'}) - Class of {m.classYear}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block font-bold text-gray-700 uppercase text-xs mb-1">
+                            Leader Full Name *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Dr. Emmanuel Ogbor"
+                            value={newLeader.name}
+                            onChange={(e) => setNewLeader({ ...newLeader, name: e.target.value })}
+                            className="w-full bg-white border border-gray-300 px-3 py-2 text-xs focus:outline-none focus:border-[#C9A227]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-gray-700 uppercase text-xs mb-1">
+                            Official Position / Title *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. President General / Executive Chairman"
+                            value={newLeader.position}
+                            onChange={(e) => setNewLeader({ ...newLeader, position: e.target.value })}
+                            className="w-full bg-white border border-gray-300 px-3 py-2 text-xs focus:outline-none focus:border-[#C9A227]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Photo Upload for Leader */}
+                      <div className="space-y-2 pt-2 border-t border-gray-200">
+                        <label className="block font-bold text-gray-700 uppercase text-xs">
+                          Leader Official Photo
+                        </label>
+                        <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                          <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-[#C9A227] bg-white shrink-0 shadow-sm">
+                            {newLeader.image ? (
+                              <img src={newLeader.image} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            ) : (
+                              <div className="w-full h-full bg-[#0D2B4E] text-[#C9A227] flex items-center justify-center font-bold text-sm">
+                                {newLeader.name ? newLeader.name.charAt(0) : '?'}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-2 w-full">
+                            <label className="px-3 py-1.5 bg-[#0A1F44] hover:bg-[#C9A227] text-white hover:text-[#0A1F44] font-bold text-[10px] uppercase tracking-wider cursor-pointer transition-all inline-flex items-center space-x-1 shadow-sm">
+                              <Upload className="h-3.5 w-3.5" />
+                              <span>Upload Photo File</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    try {
+                                      const compressed = await compressImageFile(file, 800, 800, 0.85);
+                                      setNewLeader(prev => ({ ...prev, image: compressed }));
+                                    } catch (err) {
+                                      alert("Could not process photo image.");
+                                    }
+                                  }
+                                }}
+                              />
+                            </label>
+
+                            <input
+                              type="url"
+                              placeholder="Or paste photo image web URL..."
+                              value={newLeader.image}
+                              onChange={(e) => setNewLeader({ ...newLeader, image: e.target.value })}
+                              className="w-full bg-white border border-gray-300 px-3 py-1.5 text-xs focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-[#0D2B4E] text-white font-bold uppercase text-xs tracking-wider hover:bg-[#C9A227] hover:text-[#0A1F44] transition-colors"
+                      >
+                        Add Officer to Roster
+                      </button>
+                    </form>
+
+                    {/* Current Leaders List */}
+                    <div className="space-y-4">
+                      <h3 className="font-serif font-bold text-sm text-[#0A1F44] uppercase tracking-wider flex items-center justify-between border-b pb-2">
+                        <span>Current Public Executive Roster ({leadersList.length})</span>
+                        <span className="text-[10px] font-sans font-normal text-gray-500">
+                          These officers are displayed on the public Home & About pages.
+                        </span>
+                      </h3>
+
+                      {leadersList.length === 0 ? (
+                        <p className="text-xs text-gray-500 italic p-4 text-center bg-gray-50 border border-dashed">
+                          No executive officers posted yet. Add a leader above to post them to the site.
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {leadersList.map((leader, idx) => (
+                            <div key={idx} className="bg-[#0D2B4E] border border-[#C9A227] p-4 text-white flex flex-col justify-between space-y-3 relative shadow-md">
+                              <div className="flex items-start space-x-3">
+                                <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-[#C9A227] bg-white shrink-0 relative group">
+                                  <img src={leader.image} alt={leader.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                                    <Upload className="h-4 w-4 text-amber-300" />
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          try {
+                                            const compressed = await compressImageFile(file, 800, 800, 0.85);
+                                            const updated = [...leadersList];
+                                            updated[idx].image = compressed;
+                                            setLeadersList(updated);
+                                            triggerFeedback('Leader photo updated!');
+                                          } catch (err) {
+                                            alert("Could not process photo.");
+                                          }
+                                        }
+                                      }}
+                                    />
+                                  </label>
+                                </div>
+
+                                <div className="space-y-1 min-w-0">
+                                  <input
+                                    type="text"
+                                    value={leader.name}
+                                    onChange={(e) => {
+                                      const updated = [...leadersList];
+                                      updated[idx].name = e.target.value;
+                                      setLeadersList(updated);
+                                    }}
+                                    className="font-serif font-bold text-xs text-amber-100 uppercase bg-transparent border-b border-gray-600 focus:border-[#C9A227] focus:outline-none w-full"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={leader.position}
+                                    onChange={(e) => {
+                                      const updated = [...leadersList];
+                                      updated[idx].position = e.target.value;
+                                      setLeadersList(updated);
+                                    }}
+                                    className="text-[10px] uppercase text-gray-300 font-sans bg-transparent border-b border-gray-600 focus:border-[#C9A227] focus:outline-none w-full"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                                <span className="text-[9px] text-amber-400 font-mono">Rank #{idx + 1}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveLeader(idx)}
+                                  className="px-2 py-1 bg-red-600/80 hover:bg-red-600 text-white font-bold text-[10px] uppercase flex items-center space-x-1"
+                                >
+                                  <Trash className="h-3 w-3" />
+                                  <span>Remove</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="pt-4 border-t border-gray-200 text-right">
+                        <button
+                          onClick={handleSaveLeaders}
+                          className="px-6 py-3 bg-[#0A1F44] text-[#C9A227] border-2 border-[#C9A227] uppercase font-bold text-xs tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44] transition-all inline-flex items-center space-x-2 shadow-md"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Publish Leaders to Public Site</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* SECTION 8: SITE SETTINGS */}
               {activeTab === 'appearance' && (
                 <div className="space-y-6">
@@ -2213,15 +2508,71 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                         />
                       </div>
 
-                      <div>
-                        <label className="block font-bold text-gray-700 uppercase mb-1">Gallery Collage Images (One absolute URL per line)</label>
-                        <textarea
-                          rows={3}
-                          value={appForm.galleryString}
-                          onChange={(e) => setAppForm({ ...appForm, galleryString: e.target.value })}
-                          placeholder="Provide absolute photo image link URLs..."
-                          className="w-full bg-[#F5F1E8] border border-gray-300 px-3 py-2 focus:outline-none font-mono text-[10px]"
-                        />
+                      <div className="space-y-3 p-4 bg-[#F5F1E8] border border-gray-300">
+                        <div className="flex items-center justify-between">
+                          <label className="block font-bold text-gray-700 uppercase text-xs">
+                            Gallery Collage Photos & Uploads
+                          </label>
+                          <label className="px-3 py-1 bg-[#0A1F44] hover:bg-[#C9A227] text-white hover:text-[#0A1F44] font-bold text-[10px] uppercase tracking-wider cursor-pointer transition-all inline-flex items-center space-x-1 shadow-sm">
+                            <Upload className="h-3.5 w-3.5" />
+                            <span>Upload New Photo to Gallery</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  try {
+                                    const compressed = await compressImageFile(file, 1200, 1200, 0.85);
+                                    const currentList = appForm.galleryString.split('\n').map(g => g.trim()).filter(Boolean);
+                                    const updated = [...currentList, compressed].join('\n');
+                                    setAppForm(prev => ({ ...prev, galleryString: updated }));
+                                    triggerFeedback('New photo uploaded to gallery list! Click "Synchronize Settings" to make live.');
+                                  } catch (err) {
+                                    alert("Could not process gallery image.");
+                                  }
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        {/* Gallery Thumbnails Grid */}
+                        {appForm.galleryString.split('\n').map(g => g.trim()).filter(Boolean).length > 0 && (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 pt-2 border-t border-gray-300">
+                            {appForm.galleryString.split('\n').map(g => g.trim()).filter(Boolean).map((url, idx) => (
+                              <div key={idx} className="relative group h-20 bg-gray-200 border border-gray-400 overflow-hidden shadow-sm">
+                                <img src={url} alt={`Gallery ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const list = appForm.galleryString.split('\n').map(g => g.trim()).filter(Boolean);
+                                    list.splice(idx, 1);
+                                    setAppForm(prev => ({ ...prev, galleryString: list.join('\n') }));
+                                  }}
+                                  className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white p-1 rounded-none opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                                  title="Remove photo"
+                                >
+                                  <Trash className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="pt-2">
+                          <label className="block text-[10px] text-gray-500 font-mono mb-1">
+                            Gallery URLs list (One URL per line):
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={appForm.galleryString}
+                            onChange={(e) => setAppForm({ ...appForm, galleryString: e.target.value })}
+                            placeholder="Provide absolute photo image link URLs..."
+                            className="w-full bg-white border border-gray-300 px-3 py-2 focus:outline-none font-mono text-[10px]"
+                          />
+                        </div>
                       </div>
 
                       <button

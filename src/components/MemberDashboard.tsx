@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Compass, User, MessageSquare, Award, Calendar, BookOpen, CreditCard, Bell, 
-  Send, Plus, MessageCircle, Heart, Lock, Pin, Check, Download, AlertCircle, FileText, CheckCircle, X
+  Send, Plus, MessageCircle, Heart, Lock, Pin, Check, Download, AlertCircle, FileText, CheckCircle, X,
+  Upload, Trash, Camera
 } from 'lucide-react';
 import { Member, Blog, Event, Discussion, ChatMessage, Ballot, DuesRecord } from '../types';
 import * as api from '../api';
 import { getMilitaryInsignia, getMemberTitle, OFFICIAL_POSITIONS, AVAILABLE_POSITIONS } from '../utils/ranks';
+import { compressImageFile } from '../utils/imageCompressor';
 
 interface MemberDashboardProps {
   currentUser: any;
@@ -588,15 +590,86 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block font-bold uppercase text-slate-700 mb-1">Profile Image / Avatar URL</label>
-                      <input
-                        type="url"
-                        placeholder="https://example.com/avatar.jpg"
-                        value={profileForm.avatarUrl}
-                        onChange={(e) => setProfileForm({ ...profileForm, avatarUrl: e.target.value })}
-                        className="w-full bg-[#F5F1E8] border border-gray-300 px-3 py-2 focus:outline-none focus:border-[#C9A227]"
-                      />
+                    {/* Enhanced Profile Picture Uploader */}
+                    <div className="p-4 bg-[#F5F1E8] border border-gray-300 space-y-3">
+                      <label className="block font-bold uppercase text-slate-700 text-xs flex items-center justify-between">
+                        <span>Profile Picture / Avatar</span>
+                        {profileForm.avatarUrl && (
+                          <span className="text-[10px] text-emerald-600 font-semibold flex items-center space-x-1">
+                            <CheckCircle className="h-3 w-3" />
+                            <span>Photo Loaded</span>
+                          </span>
+                        )}
+                      </label>
+
+                      <div className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                        {/* Avatar Live Preview */}
+                        <div className="relative h-20 w-20 rounded-full overflow-hidden border-2 border-[#C9A227] shadow-sm bg-white shrink-0 group">
+                          {profileForm.avatarUrl ? (
+                            <img
+                              src={profileForm.avatarUrl}
+                              alt={profileForm.name || 'Member Avatar'}
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-[#0D2B4E] text-[#C9A227] flex items-center justify-center font-serif font-black text-xl">
+                              {profileForm.name ? profileForm.name.charAt(0).toUpperCase() : 'U'}
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                            <Camera className="h-5 w-5" />
+                          </div>
+                        </div>
+
+                        {/* Upload Controls */}
+                        <div className="space-y-2 w-full">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="px-3 py-1.5 bg-[#0A1F44] hover:bg-[#C9A227] text-white hover:text-[#0A1F44] font-bold text-[11px] uppercase tracking-wider cursor-pointer transition-all inline-flex items-center space-x-1.5 shadow-sm">
+                              <Upload className="h-3.5 w-3.5" />
+                              <span>Upload Profile Photo</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    try {
+                                      const compressed = await compressImageFile(file, 800, 800, 0.85);
+                                      setProfileForm(prev => ({ ...prev, avatarUrl: compressed }));
+                                    } catch (err) {
+                                      alert("Could not process photo file. Please try another image.");
+                                    }
+                                  }
+                                }}
+                              />
+                            </label>
+
+                            {profileForm.avatarUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setProfileForm(prev => ({ ...prev, avatarUrl: '' }))}
+                                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-[11px] uppercase border border-red-200 inline-flex items-center space-x-1 transition-colors"
+                              >
+                                <Trash className="h-3.5 w-3.5" />
+                                <span>Remove</span>
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-gray-500 block">Or enter an image web URL:</span>
+                            <input
+                              type="url"
+                              placeholder="https://example.com/photo.jpg"
+                              value={profileForm.avatarUrl}
+                              onChange={(e) => setProfileForm({ ...profileForm, avatarUrl: e.target.value })}
+                              className="w-full bg-white border border-gray-300 px-3 py-1.5 text-xs focus:outline-none focus:border-[#C9A227]"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
