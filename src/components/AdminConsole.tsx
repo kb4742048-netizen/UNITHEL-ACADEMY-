@@ -678,7 +678,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     if (e) e.preventDefault();
     try {
       const res = await api.updateAppearance({
-        ...appearance,
+        ...(appearance || {}),
         leaders: leadersList
       });
 
@@ -693,21 +693,50 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     }
   };
 
-  const handleAddLeader = (e: React.FormEvent) => {
+  const handleAddLeader = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLeader.name.trim() || !newLeader.position.trim()) {
       triggerFeedback('Leader Name and Official Position Title are required.', 'error');
       return;
     }
     const defaultImage = newLeader.image.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb';
-    setLeadersList([...leadersList, { ...newLeader, image: defaultImage }]);
+    const updatedList = [...leadersList, { ...newLeader, image: defaultImage }];
+    setLeadersList(updatedList);
     setNewLeader({ name: '', position: '', image: '' });
-    triggerFeedback('New leader added to roster list! Click "Publish Leaders to Public Site" to save changes live.');
+    
+    try {
+      const res = await api.updateAppearance({
+        ...(appearance || {}),
+        leaders: updatedList
+      });
+      if (res.success) {
+        if (res.appearance) setAppearance(res.appearance);
+        triggerFeedback('New leader added and published to public site successfully!');
+        await loadAdminData();
+        await onRefreshData();
+      }
+    } catch (err: any) {
+      triggerFeedback('Added to list, but failed to save to server: ' + err.message, 'error');
+    }
   };
 
-  const handleRemoveLeader = (index: number) => {
-    setLeadersList(leadersList.filter((_, i) => i !== index));
-    triggerFeedback('Leader removed from roster list.');
+  const handleRemoveLeader = async (index: number) => {
+    const updatedList = leadersList.filter((_, i) => i !== index);
+    setLeadersList(updatedList);
+    try {
+      const res = await api.updateAppearance({
+        ...(appearance || {}),
+        leaders: updatedList
+      });
+      if (res.success) {
+        if (res.appearance) setAppearance(res.appearance);
+        triggerFeedback('Leader removed and changes published!');
+        await loadAdminData();
+        await onRefreshData();
+      }
+    } catch (err: any) {
+      triggerFeedback('Removed from list, but failed to update server: ' + err.message, 'error');
+    }
   };
 
   // Database Connection trigger force reload
