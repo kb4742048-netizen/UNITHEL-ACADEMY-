@@ -331,3 +331,40 @@ export async function flushDatabase(): Promise<any> {
   if (!res.ok) throw new Error('Failed to flush custom dummy data.');
   return res.json();
 }
+
+export async function fetchPatronInvites(): Promise<any[]> {
+  const res = await fetch(`${API_BASE}/api/patron/invites`);
+  if (!res.ok) throw new Error('Failed to fetch patron invitations.');
+  return res.json();
+}
+
+export async function generatePatronInvite(patronType: 'Lord Patron' | 'Patron' = 'Lord Patron'): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/patron/invites/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ patronType })
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to generate invitation link.');
+  }
+  return res.json();
+}
+
+export async function validatePatronInvite(token: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/patron/invites/validate/${encodeURIComponent(token)}`);
+  return res.json();
+}
+
+export async function registerPatronViaInvite(token: string, data: { name: string; email: string; phone: string; password: string }): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/patron/invites/register/${encodeURIComponent(token)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Registration via invitation failed.');
+  }
+  return res.json();
+}

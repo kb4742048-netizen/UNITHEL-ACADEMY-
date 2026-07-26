@@ -3,9 +3,10 @@ import {
   Users, CheckCircle, ShieldAlert, Award, FileText, Settings, Plus, Trash, 
   Lock, Pin, Calendar, Save, Megaphone, Share2, Compass, TrendingUp, 
   DollarSign, Activity, Edit3, Shield, Menu, ChevronLeft, ChevronRight, 
-  RefreshCw, Database, Info, Upload, Key, ListFilter, X, LogOut, Globe, Camera
+  RefreshCw, Database, Info, Upload, Key, ListFilter, X, LogOut, Globe, Camera,
+  Crown, Copy, Link as LinkIcon
 } from 'lucide-react';
-import { Member, Blog, Event, Discussion, Ballot, DuesRecord, LordPatronInvite, WebsiteAppearance, News, LeadershipMember } from '../types';
+import { Member, Blog, Event, Discussion, Ballot, DuesRecord, LordPatronInvite, PatronInvite, WebsiteAppearance, News, LeadershipMember } from '../types';
 import * as api from '../api';
 import { getMilitaryInsignia, getMemberTitle, OFFICIAL_POSITIONS, AVAILABLE_POSITIONS } from '../utils/ranks';
 import { compressImageFile } from '../utils/imageCompressor';
@@ -32,6 +33,11 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   const [ballots, setBallots] = useState<Ballot[]>([]);
   const [dues, setDues] = useState<DuesRecord[]>([]);
   const [invites, setInvites] = useState<LordPatronInvite[]>([]);
+  const [patronInvites, setPatronInvites] = useState<PatronInvite[]>([]);
+  const [selectedPatronType, setSelectedPatronType] = useState<'Lord Patron' | 'Patron'>('Lord Patron');
+  const [isGeneratingPatronInvite, setIsGeneratingPatronInvite] = useState(false);
+  const [generatedPatronLink, setGeneratedPatronLink] = useState('');
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [news, setNews] = useState<News[]>([]);
   const [appearance, setAppearance] = useState<any>(null);
   const [isPostgres, setIsPostgres] = useState(false);
@@ -141,12 +147,13 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   const loadAdminData = async () => {
     setLoading(true);
     try {
-      const [mems, discs, bals, duesRecords, invs, appData, newsData, dbStatus] = await Promise.all([
+      const [mems, discs, bals, duesRecords, invs, patronInvs, appData, newsData, dbStatus] = await Promise.all([
         api.fetchMembers(),
         api.fetchDiscussions(),
         api.fetchBallots(),
         api.fetchDues(),
         api.fetchLordPatronInvites(),
+        api.fetchPatronInvites().catch(() => []),
         api.fetchAppearance(),
         api.fetchNews(),
         api.fetchDbStatus().catch(() => ({ isPostgres: false }))
@@ -157,6 +164,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       setBallots(bals);
       setDues(duesRecords);
       setInvites(invs);
+      setPatronInvites(patronInvs);
       setAppearance(appData);
       setNews(newsData);
       setIsPostgres(dbStatus.isPostgres);
@@ -546,7 +554,32 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     }
   };
 
-  // 11. Public Executive Leaders Management
+  // 11. Patron Lodge Invitation Generator
+  const handleGeneratePatronInvite = async () => {
+    setIsGeneratingPatronInvite(true);
+    setGeneratedPatronLink('');
+    try {
+      const res = await api.generatePatronInvite(selectedPatronType);
+      if (res.success && res.link) {
+        setGeneratedPatronLink(res.link);
+        triggerFeedback(`Unique, one-time invitation link generated for ${selectedPatronType}!`);
+        await loadAdminData();
+      }
+    } catch (err: any) {
+      triggerFeedback('Failed to generate patron invite link: ' + err.message, 'error');
+    } finally {
+      setIsGeneratingPatronInvite(false);
+    }
+  };
+
+  const copyInviteToClipboard = (link: string, key: string) => {
+    navigator.clipboard.writeText(link);
+    setCopiedToken(key);
+    triggerFeedback('Invitation link copied to clipboard!');
+    setTimeout(() => setCopiedToken(null), 3000);
+  };
+
+  // 12. Public Executive Leaders Management
   const handleSaveLeaders = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     try {
@@ -636,6 +669,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
 
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: Activity, group: 'Admin' },
+    { id: 'patron_lodge', label: 'Patron Lodge', icon: Crown, group: 'Admin' },
     { id: 'members', label: 'Members Registry', icon: Users, group: 'Management' },
     { id: 'senate', label: 'Senate Council', icon: Award, group: 'Control' },
     { id: 'blogs', label: 'Blog Chronicles', icon: FileText, group: 'Management' },
@@ -1130,6 +1164,240 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                         <span>Force Complete Sync Now</span>
                       </button>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION: PATRON LODGE */}
+              {activeTab === 'patron_lodge' && (
+                <div className="space-y-6 font-sans">
+                  {/* Header Banner */}
+                  <div className="bg-[#0A1F44] text-white p-6 border-2 border-[#C9A227] shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <Crown className="h-6 w-6 text-[#C9A227]" />
+                        <h2 className="font-serif font-black text-xl uppercase tracking-wide text-white">
+                          Patron Lodge (VIP Invitation Portal)
+                        </h2>
+                      </div>
+                      <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                        Generate secure, single-use invitation links to register <strong className="text-[#C9A227]">Lord Patrons</strong> and <strong className="text-[#C9A227]">Patrons</strong> directly into The Scholars Circle. Invited patrons bypass the standard member queue, receive automatic activation, and are immediately granted VIP status.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => setGeneratedPatronLink('')}
+                      className="px-5 py-3 bg-[#C9A227] text-[#0A1F44] font-bold uppercase text-xs tracking-widest hover:bg-white transition-all shadow-md shrink-0 flex items-center space-x-2 cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Generate Invitation Link</span>
+                    </button>
+                  </div>
+
+                  {/* Generator Card */}
+                  <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-5">
+                    <div className="border-b pb-3 border-gray-100">
+                      <h3 className="font-serif font-bold text-sm text-[#0A1F44] uppercase tracking-wide flex items-center space-x-2">
+                        <Key className="h-4 w-4 text-[#C9A227]" />
+                        <span>Generate One-Time Patron Invitation</span>
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">Select the patron classification to create a unique single-use registration URL.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Lord Patron Option */}
+                      <label
+                        onClick={() => setSelectedPatronType('Lord Patron')}
+                        className={`p-4 border-2 cursor-pointer transition-all flex items-start space-x-3 ${
+                          selectedPatronType === 'Lord Patron'
+                            ? 'border-[#C9A227] bg-[#F5F1E8]/60 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="patronType"
+                          checked={selectedPatronType === 'Lord Patron'}
+                          onChange={() => setSelectedPatronType('Lord Patron')}
+                          className="mt-1 accent-[#C9A227]"
+                        />
+                        <div>
+                          <div className="font-serif font-bold text-sm text-[#0A1F44] uppercase flex items-center space-x-1.5">
+                            <Crown className="h-4 w-4 text-[#C9A227]" />
+                            <span>Lord Patron</span>
+                          </div>
+                          <p className="text-[11px] text-gray-600 mt-0.5 leading-snug">
+                            Highest honorific patron classification. Grants supreme VIP badge, Lord Patron title, and full portal access.
+                          </p>
+                        </div>
+                      </label>
+
+                      {/* Patron Option */}
+                      <label
+                        onClick={() => setSelectedPatronType('Patron')}
+                        className={`p-4 border-2 cursor-pointer transition-all flex items-start space-x-3 ${
+                          selectedPatronType === 'Patron'
+                            ? 'border-[#C9A227] bg-[#F5F1E8]/60 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="patronType"
+                          checked={selectedPatronType === 'Patron'}
+                          onChange={() => setSelectedPatronType('Patron')}
+                          className="mt-1 accent-[#C9A227]"
+                        />
+                        <div>
+                          <div className="font-serif font-bold text-sm text-[#0A1F44] uppercase flex items-center space-x-1.5">
+                            <Shield className="h-4 w-4 text-[#C9A227]" />
+                            <span>Patron</span>
+                          </div>
+                          <p className="text-[11px] text-gray-600 mt-0.5 leading-snug">
+                            Distinguished patron and supporter classification. Grants Patron badge, Patron title, and full portal access.
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        onClick={handleGeneratePatronInvite}
+                        disabled={isGeneratingPatronInvite}
+                        className="px-6 py-3 bg-[#0A1F44] text-[#C9A227] border-2 border-[#C9A227] font-bold uppercase text-xs tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44] transition-all flex items-center space-x-2 shadow-md disabled:opacity-50 cursor-pointer"
+                      >
+                        {isGeneratingPatronInvite ? (
+                          <div className="animate-spin h-4 w-4 border-2 border-[#C9A227] border-t-transparent rounded-full" />
+                        ) : (
+                          <LinkIcon className="h-4 w-4" />
+                        )}
+                        <span>{isGeneratingPatronInvite ? 'Generating Secure Link...' : `Generate ${selectedPatronType} Invitation Link`}</span>
+                      </button>
+                    </div>
+
+                    {/* Display Generated Link */}
+                    {generatedPatronLink && (
+                      <div className="p-4 bg-[#0A1F44] border-2 border-[#C9A227] text-white space-y-3 mt-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-[#C9A227] flex items-center space-x-1">
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            <span>Active One-Time Invitation URL Generated</span>
+                          </span>
+                          <span className="text-[9px] bg-[#C9A227]/20 text-amber-300 px-2 py-0.5 font-mono uppercase border border-[#C9A227]/40">
+                            Single-Use Security
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={generatedPatronLink}
+                            className="flex-1 bg-[#0D2B4E] border border-gray-600 px-3 py-2 text-amber-300 font-mono text-xs focus:outline-none"
+                          />
+                          <button
+                            onClick={() => copyInviteToClipboard(generatedPatronLink, 'new')}
+                            className="px-4 py-2 bg-[#C9A227] text-[#0A1F44] font-bold uppercase text-xs tracking-wider hover:bg-white transition-colors shrink-0 flex items-center justify-center space-x-1 cursor-pointer"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>{copiedToken === 'new' ? 'Copied!' : 'Copy Link'}</span>
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-300 italic">
+                          Share this link directly with the designated patron. It will expire permanently as soon as registration is completed.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Active & Historical Invitations List */}
+                  <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-4">
+                    <div className="border-b pb-3 border-gray-100 flex items-center justify-between">
+                      <div>
+                        <h3 className="font-serif font-bold text-sm text-[#0A1F44] uppercase tracking-wide">
+                          Issued Patron Invitation Links Registry
+                        </h3>
+                        <p className="text-xs text-gray-500">Historical record of all generated patron links and usage status.</p>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-[#0A1F44] bg-[#F5F1E8] px-2.5 py-1 border border-gray-300">
+                        Total Links: {patronInvites.length}
+                      </span>
+                    </div>
+
+                    {patronInvites.length === 0 ? (
+                      <div className="p-8 text-center bg-[#F5F1E8]/50 border border-dashed border-gray-300 text-gray-500 text-xs">
+                        No patron invitation links have been issued yet. Click "Generate Invitation Link" above to create one.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-[#0A1F44] text-white uppercase text-[10px] font-bold tracking-wider">
+                              <th className="px-4 py-3">Classification</th>
+                              <th className="px-4 py-3">Invitation Link / Token</th>
+                              <th className="px-4 py-3">Status</th>
+                              <th className="px-4 py-3">Registered Member</th>
+                              <th className="px-4 py-3">Created Date</th>
+                              <th className="px-4 py-3 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 bg-white">
+                            {patronInvites.map((inv) => {
+                              const fullLink = `${window.location.origin}/patron-invite/${inv.token}`;
+                              return (
+                                <tr key={inv.token} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-4 py-3">
+                                    <span className={`inline-flex items-center space-x-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                                      inv.patronType === 'Lord Patron'
+                                        ? 'bg-[#C9A227]/20 text-[#0A1F44] border border-[#C9A227]/50'
+                                        : 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    }`}>
+                                      {inv.patronType === 'Lord Patron' ? (
+                                        <Crown className="h-3 w-3 text-[#C9A227]" />
+                                      ) : (
+                                        <Shield className="h-3 w-3 text-[#C9A227]" />
+                                      )}
+                                      <span>{inv.patronType || 'Lord Patron'}</span>
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 font-mono text-[11px] text-gray-700">
+                                    <span className="block truncate max-w-[200px] sm:max-w-[300px]" title={fullLink}>
+                                      {fullLink}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className={`inline-block px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                                      inv.isUsed
+                                        ? 'bg-gray-100 text-gray-500 border border-gray-300'
+                                        : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    }`}>
+                                      {inv.isUsed ? 'Expired / Used' : 'Active (One-Time)'}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-gray-700 font-semibold">
+                                    {inv.usedByName || inv.usedBy || (inv.isUsed ? 'Registered' : '—')}
+                                  </td>
+                                  <td className="px-4 py-3 text-gray-500 font-mono text-[10px]">
+                                    {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : '—'}
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    {!inv.isUsed && (
+                                      <button
+                                        onClick={() => copyInviteToClipboard(fullLink, inv.token)}
+                                        className="px-2.5 py-1 bg-[#0A1F44] text-[#C9A227] hover:bg-[#C9A227] hover:text-[#0A1F44] font-bold text-[10px] uppercase tracking-wider transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                        <span>{copiedToken === inv.token ? 'Copied' : 'Copy'}</span>
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

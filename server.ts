@@ -28,6 +28,7 @@ interface DatabaseSchema {
   ballots: any[];
   duesRecords: any[];
   lordPatronInvites: any[];
+  patronInvitations: any[];
   appearance: {
     logoUrl: string;
     logoText?: string;
@@ -53,6 +54,7 @@ interface DatabaseSchema {
 
 const defaultDb: DatabaseSchema = {
   members: [],
+  patronInvitations: [],
   blogs: [
     {
       id: 'b1',
@@ -386,6 +388,18 @@ async function initializeDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS patron_invitations (
+        token TEXT PRIMARY KEY,
+        patron_type TEXT NOT NULL,
+        is_used BOOLEAN DEFAULT FALSE,
+        used_by TEXT,
+        used_by_name TEXT,
+        created_at TEXT NOT NULL,
+        expires_at TEXT
+      );
+    `);
+
     const countRes = await client.query('SELECT COUNT(*) FROM members');
     if (parseInt(countRes.rows[0].count, 10) === 0) {
       console.log('[PostgreSQL] Database empty. Seeding defaults...');
@@ -519,6 +533,16 @@ async function saveToPostgres(db: DatabaseSchema) {
         [i.code, i.isUsed, i.usedBy, i.createdAt]
       );
     }
+
+    // 10. Patron Invitations (New)
+    await client.query('DELETE FROM patron_invitations');
+    for (const i of (db.patronInvitations || [])) {
+      await client.query(
+        `INSERT INTO patron_invitations (token, patron_type, is_used, used_by, used_by_name, created_at, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [i.token, i.patronType, !!i.isUsed, i.usedBy || null, i.usedByName || null, i.createdAt, i.expiresAt || null]
+      );
+    }
     
     // 10. Site Settings
     await client.query('DELETE FROM site_settings');
@@ -554,6 +578,7 @@ async function loadFromPostgres(): Promise<DatabaseSchema | null> {
   try {
     const db: DatabaseSchema = {
       members: [],
+      patronInvitations: [],
       blogs: [],
       news: [],
       events: [],
@@ -704,6 +729,22 @@ async function loadFromPostgres(): Promise<DatabaseSchema | null> {
       usedBy: r.used_by,
       createdAt: r.created_at
     }));
+
+    // 9. Patron Invitations
+    try {
+      const patronInvRes = await client.query('SELECT * FROM patron_invitations');
+      db.patronInvitations = patronInvRes.rows.map(r => ({
+        token: r.token,
+        patronType: r.patron_type,
+        isUsed: r.is_used,
+        usedBy: r.used_by,
+        usedByName: r.used_by_name,
+        createdAt: r.created_at,
+        expiresAt: r.expires_at
+      }));
+    } catch (e) {
+      db.patronInvitations = db.patronInvitations || [];
+    }
     
     // 9. Site Settings
     const settingRes = await client.query('SELECT * FROM site_settings WHERE id = $1', ['default']);
@@ -1588,7 +1629,7 @@ app.post('/api/dues', (req, res) => {
 });
 
 
-// 9. LORD PATRON INVITATION API
+// 9. LORD PATRON & PATRON LODGE INVITATION API
 app.get('/api/lord-patron/invites', (req, res) => {
   const db = loadDb();
   res.json(db.lordPatronInvites);
@@ -1606,6 +1647,188 @@ app.post('/api/lord-patron/invites', (req, res) => {
   db.lordPatronInvites.unshift(newInvite);
   saveDb(db);
   res.json({ success: true, invite: newInvite });
+});
+
+// NEW PATRON LODGE INVITATION SYSTEM
+app.get('/api/patron/invites', (req, res) => {
+  const db = loadDb();
+  const invites = db.patronInvitations || [];
+  res.json(invites);
+});
+
+app.post('/api/patron/invites/generate', (req, res) => {
+  const db = loadDb();
+  const { patronType } = req.body || {};
+  const selectedType = patronType === 'Patron' ? 'Patron' : 'Lord Patron';
+  
+  // Generate secure token
+  const randomHex = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+  const token = `patron-inv-${selectedType === 'Patron' ? 'p' : 'lp'}-${randomHex}`;
+  
+  const host = req.get('host') || 'unithel-academy.onrender.com';
+  const protocol = req.protocol || 'https';
+  const link = `${protocol}://${host}/patron-invite/${token}`;
+
+  const newInvite = {
+    token,
+    patronType: selectedType,
+    isUsed: false,
+    usedBy: null,
+    usedByName: null,
+    createdAt: new Date().toISOString()
+  };
+
+  if (!db.patronInvitations) db.patronInvitations = [];
+  db.patronInvitations.unshift(newInvite);
+  saveDb(db);
+
+  res.json({ success: true, invite: newInvite, link, token });
+});
+
+app.get('/api/patron/invites/validate/:token', (req, res) => {
+  const { token } = req.params;
+  const db = loadDb();
+  
+  // Check patronInvitations first
+  const patronInv = (db.patronInvitations || []).find(i => i.token === token);
+  if (patronInv) {
+    if (patronInv.isUsed) {
+      return res.json({ valid: false, message: 'This invitation link has already been used and is expired.' });
+    }
+    return res.json({ valid: true, patronType: patronInv.patronType || 'Lord Patron' });
+  }
+
+  // Fallback to legacy lordPatronInvites by code
+  const legacyInv = (db.lordPatronInvites || []).find(i => i.code === token);
+  if (legacyInv) {
+    if (legacyInv.isUsed) {
+      return res.json({ valid: false, message: 'This invitation link code has already been used.' });
+    }
+    return res.json({ valid: true, patronType: 'Lord Patron' });
+  }
+
+  res.json({ valid: false, message: 'Invalid or expired invitation link.' });
+});
+
+app.post('/api/patron/invites/register/:token', (req, res) => {
+  const { token } = req.params;
+  const { name, email, phone, password } = req.body;
+
+  if (!name || !email || !phone || !password) {
+    return res.status(400).json({ error: 'Full Name, Email, Phone Number, and Password are all required.' });
+  }
+
+  const db = loadDb();
+
+  // Find token in patronInvitations or lordPatronInvites
+  let inviteIndex = (db.patronInvitations || []).findIndex(i => i.token === token && !i.isUsed);
+  let isNewSystem = true;
+  let patronType: 'Lord Patron' | 'Patron' = 'Lord Patron';
+
+  if (inviteIndex !== -1) {
+    patronType = db.patronInvitations[inviteIndex].patronType || 'Lord Patron';
+  } else {
+    // Check legacy
+    const legacyIndex = (db.lordPatronInvites || []).findIndex(i => i.code === token && !i.isUsed);
+    if (legacyIndex === -1) {
+      return res.status(400).json({ error: 'This invitation link is invalid or has already expired.' });
+    }
+    isNewSystem = false;
+    inviteIndex = legacyIndex;
+  }
+
+  if (email === getAdminCredentials().email || db.members.some(m => m.email === email)) {
+    return res.status(400).json({ error: 'An account with this email address already exists.' });
+  }
+
+  const assignedRole = patronType === 'Patron' ? 'patron' : 'lord_patron';
+  const assignedPosition = patronType === 'Patron' ? 'Patron' : 'Lord Patron';
+  const newMemberId = (patronType === 'Patron' ? 'p-' : 'lp-') + Math.random().toString(36).substring(2, 11);
+
+  const newPatronMember = {
+    id: newMemberId,
+    name,
+    classYear: assignedPosition,
+    email,
+    phone,
+    password,
+    role: assignedRole,
+    position: assignedPosition,
+    isPatron: true,
+    patronTitle: assignedPosition,
+    status: 'active', // Automatically activated
+    joinedAt: new Date().toISOString().split('T')[0],
+    avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=c9a227`
+  };
+
+  db.members.push(newPatronMember);
+
+  if (isNewSystem) {
+    db.patronInvitations[inviteIndex].isUsed = true;
+    db.patronInvitations[inviteIndex].usedBy = newMemberId;
+    db.patronInvitations[inviteIndex].usedByName = name;
+  } else {
+    db.lordPatronInvites[inviteIndex].isUsed = true;
+    db.lordPatronInvites[inviteIndex].usedBy = newMemberId;
+  }
+
+  saveDb(db);
+
+  res.json({
+    success: true,
+    message: `${patronType} account activated successfully! You are now logged in.`,
+    user: newPatronMember
+  });
+});
+
+
+// SEO SUPPORT ROUTES
+app.get('/sitemap.xml', (req, res) => {
+  const host = req.get('host') || 'unithel-academy.onrender.com';
+  const protocol = req.protocol || 'https';
+  const baseUrl = `${protocol}://${host}`;
+
+  const pages = [
+    '',
+    '/blogs',
+    '/news',
+    '/events',
+    '/discussions',
+    '/gallery',
+    '/leadership',
+    '/about',
+    '/contact',
+    '/patrons'
+  ];
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${pages.map(p => `  <url>
+    <loc>${baseUrl}${p}</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>${p === '' ? '1.0' : '0.8'}</priority>
+  </url>`).join('\n')}
+</urlset>`;
+
+  res.header('Content-Type', 'application/xml');
+  res.send(xml);
+});
+
+app.get('/robots.txt', (req, res) => {
+  const host = req.get('host') || 'unithel-academy.onrender.com';
+  const protocol = req.protocol || 'https';
+  const content = `User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /patron-invite/
+
+Sitemap: ${protocol}://${host}/sitemap.xml
+`;
+
+  res.header('Content-Type', 'text/plain');
+  res.send(content);
 });
 
 

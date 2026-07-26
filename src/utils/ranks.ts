@@ -6,6 +6,8 @@ export interface PositionDef {
 }
 
 export const OFFICIAL_POSITIONS: PositionDef[] = [
+  { key: 'Lord Patron', name: 'Lord Patron', description: 'Supreme Patron Officer', fullLabel: 'Lord Patron' },
+  { key: 'Patron', name: 'Patron', description: 'Distinguished Patron', fullLabel: 'Patron' },
   { key: 'Chancellor', name: 'Chancellor', description: 'President', fullLabel: 'Chancellor (President)' },
   { key: 'Provost', name: 'Provost', description: 'Vice President', fullLabel: 'Provost (Vice President)' },
   { key: 'Scribe', name: 'Scribe', description: 'Secretary', fullLabel: 'Scribe (Secretary)' },
@@ -38,6 +40,12 @@ export function getMilitaryInsignia(position: string | undefined): string {
   
   const pos = position.toLowerCase();
   
+  if (pos.includes('lord patron') || pos.includes('lord_patron')) {
+    return '[ 👑 ]'; // Lord Patron
+  }
+  if (pos.includes('patron')) {
+    return '[ 🛡️ ]'; // Patron
+  }
   if (pos.includes('chancellor')) {
     return '[ ≡★≡ ]'; // Chancellor
   }

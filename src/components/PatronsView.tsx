@@ -13,10 +13,10 @@ export default function PatronsView() {
     async function loadPatrons() {
       try {
         const allMembers = await api.fetchMembers();
-        // Filter only active members with isPatron set to true
+        // Filter active members with isPatron set to true or role lord_patron / patron
         const activePatrons = allMembers.filter(m => 
           m.status === 'active' && 
-          m.isPatron === true
+          (m.isPatron === true || m.role === 'lord_patron' || m.role === 'patron')
         );
         setPatrons(activePatrons);
       } catch (err: any) {

@@ -11,6 +11,7 @@ import MemberDashboard from './components/MemberDashboard';
 import AdminConsole from './components/AdminConsole';
 import LeadershipView from './components/LeadershipView';
 import PatronsView from './components/PatronsView';
+import PatronInviteView from './components/PatronInviteView';
 import { Blog, Event, WebsiteAppearance } from './types';
 import * as api from './api';
 import { Compass, Shield, Award, Users, CreditCard, Key, Smartphone, Mail, X, CheckCircle } from 'lucide-react';
@@ -36,6 +37,17 @@ export default function App() {
   });
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
+
+  // Patron Invite Link intercept (/patron-invite/:token)
+  const [patronInviteToken, setPatronInviteToken] = useState<string | null>(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/patron-invite/')) {
+      const tok = path.replace('/patron-invite/', '').trim();
+      return tok || null;
+    }
+    const params = new URLSearchParams(window.location.search);
+    return params.get('patronToken') || params.get('token') || null;
+  });
 
   // Special Query Parameter Intercept for Lord Patron Invite Code
   useEffect(() => {
@@ -137,6 +149,25 @@ export default function App() {
 
   // Helper renderer
   const renderView = () => {
+    if (patronInviteToken) {
+      return (
+        <PatronInviteView
+          token={patronInviteToken}
+          onSuccessLogin={(user) => {
+            setCurrentUser(user);
+            setPatronInviteToken(null);
+            setView('dashboard');
+            window.history.replaceState({}, document.title, '/');
+          }}
+          onGoHome={() => {
+            setPatronInviteToken(null);
+            setView('home');
+            window.history.replaceState({}, document.title, '/');
+          }}
+        />
+      );
+    }
+
     if (!appearance) {
       return (
         <div className="flex items-center justify-center min-h-[60vh] text-[#0A1F44]">

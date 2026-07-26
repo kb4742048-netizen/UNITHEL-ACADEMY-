@@ -1,4 +1,4 @@
-export type UserRole = 'member' | 'admin' | 'lord_patron';
+export type UserRole = 'member' | 'admin' | 'lord_patron' | 'patron';
 export type MemberStatus = 'pending' | 'active' | 'suspended';
 
 export interface Member {
@@ -141,6 +141,16 @@ export interface LordPatronInvite {
   isUsed: boolean;
   usedBy: string | null;
   createdAt: string;
+}
+
+export interface PatronInvite {
+  token: string;
+  patronType: 'Lord Patron' | 'Patron';
+  isUsed: boolean;
+  usedBy?: string | null;
+  usedByName?: string | null;
+  createdAt: string;
+  expiresAt?: string | null;
 }
 
 export interface LeadershipMember {
