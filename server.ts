@@ -456,6 +456,22 @@ async function initializeDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS executive_leaders (
+        id TEXT PRIMARY KEY,
+        member_id TEXT,
+        name TEXT NOT NULL,
+        position TEXT NOT NULL,
+        image TEXT,
+        biography TEXT,
+        social_links JSONB,
+        current_term TEXT DEFAULT '2026-2027',
+        is_auto_elected BOOLEAN DEFAULT FALSE,
+        created_at TEXT
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS unique_exec_member_pos_term ON executive_leaders (member_id, position, current_term) WHERE member_id IS NOT NULL;
+    `);
+
     await client.query(`ALTER TABLE senate_motions ADD COLUMN IF NOT EXISTS author_id TEXT;`);
     await client.query(`ALTER TABLE senate_motions ADD COLUMN IF NOT EXISTS author_name TEXT;`);
     await client.query(`ALTER TABLE senate_motions ADD COLUMN IF NOT EXISTS deletion_requested BOOLEAN DEFAULT FALSE;`);
@@ -895,6 +911,43 @@ async function saveToPostgres(db: DatabaseSchema) {
         JSON.stringify(db.appearance || {})
       ]
     );
+
+    // 14. Sync Executive Leaders Table
+    try {
+      await client.query('DELETE FROM executive_leaders');
+      for (const leader of (db.appearance?.leaders || [])) {
+        if (!leader || !leader.name || !leader.position) continue;
+        const leaderId = leader.id || (leader.memberId ? `${leader.memberId}-${leader.position.toLowerCase().replace(/\s+/g, '-')}` : `manual-${leader.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`);
+        await client.query(
+          `INSERT INTO executive_leaders (id, member_id, name, position, image, biography, social_links, current_term, is_auto_elected, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (id) DO UPDATE SET
+             member_id = EXCLUDED.member_id,
+             name = EXCLUDED.name,
+             position = EXCLUDED.position,
+             image = EXCLUDED.image,
+             biography = EXCLUDED.biography,
+             social_links = EXCLUDED.social_links,
+             current_term = EXCLUDED.current_term,
+             is_auto_elected = EXCLUDED.is_auto_elected,
+             created_at = EXCLUDED.created_at`,
+          [
+            leaderId,
+            leader.memberId || null,
+            leader.name,
+            leader.position,
+            leader.image || '',
+            leader.biography || '',
+            leader.socialLinks ? JSON.stringify(leader.socialLinks) : null,
+            leader.currentTerm || '2026-2027',
+            !!leader.isAutoElected,
+            leader.createdAt || new Date().toISOString()
+          ]
+        );
+      }
+    } catch (e) {
+      console.error('[PostgreSQL] Error syncing executive_leaders table', e);
+    }
     
     await client.query('COMMIT');
     console.log('[PostgreSQL] DB successfully synced.');
@@ -1144,6 +1197,27 @@ async function loadFromPostgres(): Promise<DatabaseSchema | null> {
     } else {
       db.appearance = defaultDb.appearance;
     }
+
+    // 14. Load Executive Leaders from table
+    try {
+      const execRes = await client.query('SELECT * FROM executive_leaders');
+      if (execRes.rows.length > 0) {
+        db.appearance.leaders = execRes.rows.map(r => ({
+          id: r.id,
+          memberId: r.member_id || undefined,
+          name: r.name,
+          position: r.position,
+          image: r.image || '',
+          biography: r.biography || '',
+          socialLinks: r.social_links ? (typeof r.social_links === 'string' ? JSON.parse(r.social_links) : r.social_links) : {},
+          currentTerm: r.current_term || '2026-2027',
+          isAutoElected: !!r.is_auto_elected,
+          createdAt: r.created_at
+        }));
+      }
+    } catch (e) {
+      console.error('Error loading executive_leaders table, fallback to site_settings leaders json', e);
+    }
     
     return db;
   } catch (err) {
@@ -1154,12 +1228,64 @@ async function loadFromPostgres(): Promise<DatabaseSchema | null> {
   }
 }
 
-// Ensure database file exists
+function cleanupDuplicateLeaders(db: DatabaseSchema) {
+  if (!db.appearance) db.appearance = { ...defaultDb.appearance };
+  if (!db.appearance.leaders) db.appearance.leaders = [];
+
+  const leaders = db.appearance.leaders;
+  const seen = new Map<string, any>();
+  const CURRENT_TERM = '2026-2027';
+
+  for (const leader of leaders) {
+    if (!leader || !leader.name || !leader.position) continue;
+    
+    let memberId = leader.memberId;
+    if (!memberId) {
+      const matched = db.members?.find((m: any) => m.name && m.name.toLowerCase().trim() === leader.name.toLowerCase().trim());
+      if (matched) {
+        memberId = matched.id;
+      }
+    }
+
+    const pos = leader.position.trim().toLowerCase();
+    const term = leader.currentTerm || CURRENT_TERM;
+    const key = memberId ? `${memberId}:${pos}:${term}` : `manual:${leader.name.toLowerCase().trim()}:${pos}:${term}`;
+
+    if (seen.has(key)) {
+      const existing = seen.get(key);
+      if (leader.isAutoElected) {
+        existing.isAutoElected = true;
+      }
+      if (!existing.biography && leader.biography) {
+        existing.biography = leader.biography;
+      }
+      if ((!existing.image || existing.image.includes('unsplash')) && leader.image && !leader.image.includes('unsplash')) {
+        existing.image = leader.image;
+      }
+      if (!existing.socialLinks && leader.socialLinks) {
+        existing.socialLinks = leader.socialLinks;
+      }
+      if (leader.isAutoElected && leader.id) {
+        existing.id = leader.id;
+      }
+    } else {
+      seen.set(key, {
+        ...leader,
+        memberId,
+        currentTerm: term
+      });
+    }
+  }
+
+  db.appearance.leaders = Array.from(seen.values());
+}
+
 function loadDb(): DatabaseSchema {
   return cachedDb;
 }
 
 function saveDb(data: DatabaseSchema) {
+  cleanupDuplicateLeaders(data);
   cachedDb = data;
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
@@ -1178,6 +1304,8 @@ async function initializeDataEngine() {
     const pgData = await loadFromPostgres();
     if (pgData) {
       cachedDb = pgData;
+      cleanupDuplicateLeaders(cachedDb);
+      saveDb(cachedDb);
       console.log('[PostgreSQL] Loaded active dataset.');
       return;
     }
@@ -1200,6 +1328,9 @@ async function initializeDataEngine() {
       cachedDb = defaultDb;
     }
   }
+
+  cleanupDuplicateLeaders(cachedDb);
+  saveDb(cachedDb);
 }
 
 // Initialize on server start

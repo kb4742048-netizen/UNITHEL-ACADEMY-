@@ -173,9 +173,16 @@ export interface PatronInvite {
 }
 
 export interface LeadershipMember {
+  id?: string;
+  memberId?: string;
   name: string;
   position: string;
   image: string;
+  biography?: string;
+  socialLinks?: { twitter?: string; linkedin?: string };
+  currentTerm?: string;
+  isAutoElected?: boolean;
+  createdAt?: string;
 }
 
 export interface WebsiteAppearance {

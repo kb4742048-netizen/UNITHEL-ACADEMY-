@@ -141,7 +141,8 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   const [newLeader, setNewLeader] = useState<LeadershipMember>({
     name: '',
     position: '',
-    image: ''
+    image: '',
+    memberId: ''
   });
 
   // State filters
@@ -722,10 +723,32 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       alert('Leader Name and Official Position Title are required.');
       return;
     }
+
+    const posLower = newLeader.position.trim().toLowerCase();
+    const memberId = newLeader.memberId;
+
+    // Check if an executive with the same position and member already exists
+    const duplicate = leadersList.find(l => {
+      const samePos = l.position.trim().toLowerCase() === posLower;
+      const sameMember = memberId && l.memberId === memberId;
+      const sameName = !memberId && l.name.trim().toLowerCase() === newLeader.name.trim().toLowerCase();
+      return samePos && (sameMember || sameName);
+    });
+
+    if (duplicate) {
+      triggerFeedback('An executive record for this member and position already exists. Edit the existing profile instead.', 'error');
+      alert('An executive record for this member and position already exists. Edit the existing profile instead.');
+      return;
+    }
+
     const defaultImage = newLeader.image.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb';
-    const updatedList = [...leadersList, { ...newLeader, image: defaultImage }];
+    const updatedList = [...leadersList, { 
+      ...newLeader, 
+      image: defaultImage,
+      id: memberId ? `${memberId}-${posLower.replace(/\s+/g, '-')}` : `manual-${newLeader.name.toLowerCase().trim().replace(/\s+/g, '-')}-${Date.now()}`
+    }];
     setLeadersList(updatedList);
-    setNewLeader({ name: '', position: '', image: '' });
+    setNewLeader({ name: '', position: '', image: '', memberId: '' });
     
     try {
       const res = await api.updateAppearance({
@@ -2858,7 +2881,8 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                                 setNewLeader({
                                   name: found.name,
                                   position: found.position || 'Executive Member',
-                                  image: found.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde'
+                                  image: found.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde',
+                                  memberId: found.id
                                 });
                               }
                             }
@@ -3006,27 +3030,96 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                                   </label>
                                 </div>
 
-                                <div className="space-y-1 min-w-0">
-                                  <input
-                                    type="text"
-                                    value={leader.name}
-                                    onChange={(e) => {
-                                      const updated = [...leadersList];
-                                      updated[idx].name = e.target.value;
-                                      setLeadersList(updated);
-                                    }}
-                                    className="font-serif font-bold text-xs text-amber-100 uppercase bg-transparent border-b border-gray-600 focus:border-[#C9A227] focus:outline-none w-full"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={leader.position}
-                                    onChange={(e) => {
-                                      const updated = [...leadersList];
-                                      updated[idx].position = e.target.value;
-                                      setLeadersList(updated);
-                                    }}
-                                    className="text-[10px] uppercase text-gray-300 font-sans bg-transparent border-b border-gray-600 focus:border-[#C9A227] focus:outline-none w-full"
-                                  />
+                                <div className="space-y-2 min-w-0 flex-1 text-left">
+                                  <div>
+                                    <label className="block text-[8px] uppercase text-gray-400 font-bold">Name</label>
+                                    <input
+                                      type="text"
+                                      value={leader.name}
+                                      onChange={(e) => {
+                                        const updated = [...leadersList];
+                                        updated[idx].name = e.target.value;
+                                        setLeadersList(updated);
+                                      }}
+                                      className="font-serif font-bold text-xs text-amber-100 uppercase bg-transparent border-b border-gray-600 focus:border-[#C9A227] focus:outline-none w-full"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[8px] uppercase text-gray-400 font-bold">Position</label>
+                                    <input
+                                      type="text"
+                                      value={leader.position}
+                                      onChange={(e) => {
+                                        const updated = [...leadersList];
+                                        updated[idx].position = e.target.value;
+                                        setLeadersList(updated);
+                                      }}
+                                      className="text-[10px] uppercase text-gray-300 font-sans bg-transparent border-b border-gray-600 focus:border-[#C9A227] focus:outline-none w-full"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[8px] uppercase text-gray-400 font-bold">Biography</label>
+                                    <textarea
+                                      value={leader.biography || ''}
+                                      placeholder="A brief biography..."
+                                      onChange={(e) => {
+                                        const updated = [...leadersList];
+                                        updated[idx].biography = e.target.value;
+                                        setLeadersList(updated);
+                                      }}
+                                      className="text-[10px] text-gray-200 bg-[#0A223D] border border-gray-600 rounded p-1 w-full focus:outline-none focus:border-[#C9A227] resize-none h-12"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-[8px] uppercase text-gray-400 font-bold">Twitter</label>
+                                      <input
+                                        type="text"
+                                        placeholder="Twitter link..."
+                                        value={leader.socialLinks?.twitter || ''}
+                                        onChange={(e) => {
+                                          const updated = [...leadersList];
+                                          updated[idx].socialLinks = {
+                                            ...(updated[idx].socialLinks || {}),
+                                            twitter: e.target.value
+                                          };
+                                          setLeadersList(updated);
+                                        }}
+                                        className="text-[10px] text-gray-200 bg-[#0A223D] border border-gray-600 rounded p-1 w-full focus:outline-none focus:border-[#C9A227]"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[8px] uppercase text-gray-400 font-bold">LinkedIn</label>
+                                      <input
+                                        type="text"
+                                        placeholder="LinkedIn link..."
+                                        value={leader.socialLinks?.linkedin || ''}
+                                        onChange={(e) => {
+                                          const updated = [...leadersList];
+                                          updated[idx].socialLinks = {
+                                            ...(updated[idx].socialLinks || {}),
+                                            linkedin: e.target.value
+                                          };
+                                          setLeadersList(updated);
+                                        }}
+                                        className="text-[10px] text-gray-200 bg-[#0A223D] border border-gray-600 rounded p-1 w-full focus:outline-none focus:border-[#C9A227]"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[8px] uppercase text-gray-400 font-bold">Term of Office</label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. 2026-2027"
+                                      value={leader.currentTerm || ''}
+                                      onChange={(e) => {
+                                        const updated = [...leadersList];
+                                        updated[idx].currentTerm = e.target.value;
+                                        setLeadersList(updated);
+                                      }}
+                                      className="text-[10px] text-gray-200 bg-[#0A223D] border border-gray-600 rounded p-1 w-full focus:outline-none focus:border-[#C9A227]"
+                                    />
+                                  </div>
                                 </div>
                               </div>
 

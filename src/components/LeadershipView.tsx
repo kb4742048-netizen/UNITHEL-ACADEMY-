@@ -181,7 +181,7 @@ export default function LeadershipView() {
                 <p className="text-xs text-slate-500 font-sans mt-0.5">The high-ranking commissioned officers managing the daily affairs and administration.</p>
               </div>
 
-              {sortedExecutiveLeaders.length === 0 && filteredPublicLeaders.length === 0 ? (
+              {filteredPublicLeaders.length === 0 ? (
                 <div className="bg-white border border-gray-200 p-8 text-center text-slate-500 text-xs">
                   No executive officers found.
                 </div>
@@ -189,13 +189,13 @@ export default function LeadershipView() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {filteredPublicLeaders.map((leader, idx) => (
                     <div 
-                      key={`pub-lead-${idx}`} 
-                      className="bg-white border-2 border-[#C9A227] hover:border-[#0A1F44] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden"
+                      key={leader.id || `pub-lead-${idx}`} 
+                      className="bg-white border-2 border-[#C9A227] hover:border-[#0A1F44] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden text-left"
                     >
                       <div className="p-6 space-y-5">
                         <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-5 text-center sm:text-left">
                           <img 
-                            src={leader.image} 
+                            src={leader.image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb'} 
                             alt={leader.name} 
                             className="h-28 w-28 sm:h-32 sm:w-32 object-cover border-2 border-[#C9A227] shadow-md shrink-0 bg-white"
                             referrerPolicy="no-referrer"
@@ -210,77 +210,44 @@ export default function LeadershipView() {
                           </div>
                         </div>
                         <p className="text-slate-600 text-xs leading-relaxed text-justify line-clamp-4">
-                          Dedicated executive leader contributing to the strategic advancement, mentorship, and professional growth of Unithel Academy Alumni Association.
+                          {leader.biography || "Dedicated executive leader contributing to the strategic advancement, mentorship, and professional growth of Unithel Academy Alumni Association."}
                         </p>
                       </div>
-                    </div>
-                  ))}
 
-                  {sortedExecutiveLeaders.map((leader) => (
-                    <div 
-                      key={leader.id} 
-                      className="bg-white border-2 border-gray-200 hover:border-[#C9A227] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden"
-                    >
-                      <div className="p-6 space-y-5">
-                        <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-5 text-center sm:text-left">
-                          {leader.avatarUrl ? (
-                            <img 
-                              src={leader.avatarUrl} 
-                              alt={leader.name} 
-                              className="h-28 w-28 sm:h-32 sm:w-32 object-cover border-2 border-[#C9A227] shadow-md shrink-0 bg-white"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <div className="h-28 w-28 sm:h-32 sm:w-32 bg-[#0D2B4E] border-2 border-[#C9A227] flex items-center justify-center text-white font-serif font-black text-3xl shrink-0 shadow-md">
-                              {leader.name ? leader.name.charAt(0).toUpperCase() : 'L'}
+                      {(leader.currentTerm || (leader.socialLinks && (leader.socialLinks.twitter || leader.socialLinks.linkedin))) && (
+                        <div className="border-t border-gray-100 bg-slate-50 p-4 flex items-center justify-between text-[11px] text-slate-600">
+                          {leader.currentTerm && (
+                            <div>
+                              <span className="font-bold text-slate-400 uppercase tracking-widest text-[8px] block">Term of Office</span>
+                              <span className="font-mono text-[#0A1F44] font-semibold">{leader.currentTerm}</span>
                             </div>
                           )}
-                          <div className="space-y-2 min-w-0 flex-1">
-                            <h3 className="font-serif font-bold text-lg text-[#0A1F44] leading-snug">
-                              {leader.name}
-                            </h3>
-                            <div className="inline-flex items-center px-2.5 py-1 bg-slate-100 text-[#0A1F44] border border-gray-300 text-[10px] font-bold font-mono tracking-wider">
-                              {getMilitaryInsignia(leader.position)} {getMemberTitle(leader.position)}
+                          {leader.socialLinks && (leader.socialLinks.twitter || leader.socialLinks.linkedin) && (
+                            <div className="flex space-x-3">
+                              {leader.socialLinks.twitter && (
+                                <a 
+                                  href={leader.socialLinks.twitter.startsWith('http') ? leader.socialLinks.twitter : `https://twitter.com/${leader.socialLinks.twitter}`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="text-blue-500 hover:underline hover:text-blue-600 transition-colors"
+                                >
+                                  Twitter
+                                </a>
+                              )}
+                              {leader.socialLinks.linkedin && (
+                                <a 
+                                  href={leader.socialLinks.linkedin.startsWith('http') ? leader.socialLinks.linkedin : `https://linkedin.com/in/${leader.socialLinks.linkedin}`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="text-blue-700 hover:underline hover:text-blue-800 transition-colors"
+                                >
+                                  LinkedIn
+                                </a>
+                              )}
                             </div>
-                            {leader.role === 'admin' && (
-                              <div className="mt-1">
-                                <span className="inline-block text-[9px] bg-[#C9A227]/20 text-[#0A1F44] border border-[#C9A227]/60 px-2 py-0.5 font-bold uppercase tracking-wider">
-                                  ⭐ Executive Administrator
-                                </span>
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
-
-                        <p className="text-slate-600 text-xs leading-relaxed text-justify line-clamp-4">
-                          {leader.biography || "Dedicated alumni representative promoting unity, academic inquiry, and leadership inside the Scholar Circle community."}
-                        </p>
-                      </div>
-
-                      <div className="border-t border-gray-100 bg-slate-50 p-4 space-y-2 text-[11px] text-slate-600">
-                        {leader.workplace && (
-                          <div className="flex items-center space-x-2">
-                            <Briefcase className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate">
-                              <strong>Workplace:</strong> {leader.workplace} {leader.jobTitle ? `(${leader.jobTitle})` : ''}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex items-center space-x-2">
-                          <GraduationCap className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                          <span><strong>Academy Class Year:</strong> {leader.classYear}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                          <span><strong>Joined Circle:</strong> {new Date(leader.joinedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long' })}</span>
-                        </div>
-                        
-                        {leader.achievements && (
-                          <div className="mt-2 pt-2 border-t border-gray-200/60 text-[10px] text-slate-500 italic">
-                            🏆 {leader.achievements}
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>
