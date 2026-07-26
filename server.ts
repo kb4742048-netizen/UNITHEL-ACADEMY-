@@ -216,6 +216,19 @@ const defaultDb: DatabaseSchema = {
   }
 };
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+function filterExpiredChatMessages(messages: any[]): any[] {
+  if (!Array.isArray(messages)) return [];
+  const nowMs = Date.now();
+  return messages.filter(msg => {
+    if (!msg || !msg.createdAt) return false;
+    const createdTime = new Date(msg.createdAt).getTime();
+    if (isNaN(createdTime)) return true;
+    return (nowMs - createdTime) <= SEVEN_DAYS_MS;
+  });
+}
+
 let pool: pg.Pool | null = null;
 let isPostgres = false;
 let cachedDb: DatabaseSchema = defaultDb;
@@ -406,6 +419,42 @@ async function initializeDatabase() {
       );
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS senate_motions (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        description TEXT,
+        author_id TEXT,
+        author_name TEXT,
+        votes JSONB,
+        voters JSONB,
+        status TEXT,
+        created_at TEXT,
+        deletion_requested BOOLEAN DEFAULT FALSE,
+        deletion_requested_by TEXT,
+        deletion_requested_at TEXT
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        author_id TEXT NOT NULL,
+        author_name TEXT NOT NULL,
+        author_role TEXT,
+        channel TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        is_pinned BOOLEAN DEFAULT FALSE
+      );
+    `);
+
+    await client.query(`ALTER TABLE senate_motions ADD COLUMN IF NOT EXISTS author_id TEXT;`);
+    await client.query(`ALTER TABLE senate_motions ADD COLUMN IF NOT EXISTS author_name TEXT;`);
+    await client.query(`ALTER TABLE senate_motions ADD COLUMN IF NOT EXISTS deletion_requested BOOLEAN DEFAULT FALSE;`);
+    await client.query(`ALTER TABLE senate_motions ADD COLUMN IF NOT EXISTS deletion_requested_by TEXT;`);
+    await client.query(`ALTER TABLE senate_motions ADD COLUMN IF NOT EXISTS deletion_requested_at TEXT;`);
+
     const countRes = await client.query('SELECT COUNT(*) FROM members');
     if (parseInt(countRes.rows[0].count, 10) === 0) {
       console.log('[PostgreSQL] Database empty. Seeding defaults...');
@@ -426,12 +475,45 @@ async function saveToPostgres(db: DatabaseSchema) {
   try {
     await client.query('BEGIN');
     
-    // 1. Members
+    // 1. Deduplicate & Sync Members
+    const uniqueMembers: any[] = [];
+    const seenMemberIds = new Set<string>();
+    const seenMemberEmails = new Set<string>();
+
+    for (const m of (db.members || [])) {
+      if (!m || !m.id) continue;
+      const emailLower = m.email ? m.email.toLowerCase().trim() : '';
+      if (!seenMemberIds.has(m.id) && (!emailLower || !seenMemberEmails.has(emailLower))) {
+        seenMemberIds.add(m.id);
+        if (emailLower) seenMemberEmails.add(emailLower);
+        uniqueMembers.push(m);
+      }
+    }
+    db.members = uniqueMembers;
+
     await client.query('DELETE FROM members');
-    for (const m of db.members) {
+    for (const m of uniqueMembers) {
       await client.query(
         `INSERT INTO members (id, name, email, password, class_year, phone, role, status, joined_at, avatar_url, position, is_patron, patron_title, biography, workplace, job_title, achievements, social_links)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           email = EXCLUDED.email,
+           password = EXCLUDED.password,
+           class_year = EXCLUDED.class_year,
+           phone = EXCLUDED.phone,
+           role = EXCLUDED.role,
+           status = EXCLUDED.status,
+           joined_at = EXCLUDED.joined_at,
+           avatar_url = EXCLUDED.avatar_url,
+           position = EXCLUDED.position,
+           is_patron = EXCLUDED.is_patron,
+           patron_title = EXCLUDED.patron_title,
+           biography = EXCLUDED.biography,
+           workplace = EXCLUDED.workplace,
+           job_title = EXCLUDED.job_title,
+           achievements = EXCLUDED.achievements,
+           social_links = EXCLUDED.social_links`,
         [
           m.id, 
           m.name, 
@@ -456,114 +538,353 @@ async function saveToPostgres(db: DatabaseSchema) {
     }
     
     // 2. Blogs
+    const uniqueBlogs: any[] = [];
+    const seenBlogIds = new Set<string>();
+    for (const b of (db.blogs || [])) {
+      if (b && b.id && !seenBlogIds.has(b.id)) {
+        seenBlogIds.add(b.id);
+        uniqueBlogs.push(b);
+      }
+    }
+    db.blogs = uniqueBlogs;
+
     await client.query('DELETE FROM blogs');
-    for (const b of db.blogs) {
+    for (const b of uniqueBlogs) {
       await client.query(
         `INSERT INTO blogs (id, title, content, excerpt, image, date, category, is_pinned, visible_on_home)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [b.id, b.title, b.content, b.excerpt, b.image, b.date, b.category, b.isPinned, b.visibleOnHome]
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (id) DO UPDATE SET
+           title = EXCLUDED.title,
+           content = EXCLUDED.content,
+           excerpt = EXCLUDED.excerpt,
+           image = EXCLUDED.image,
+           date = EXCLUDED.date,
+           category = EXCLUDED.category,
+           is_pinned = EXCLUDED.is_pinned,
+           visible_on_home = EXCLUDED.visible_on_home`,
+        [b.id, b.title, b.content, b.excerpt, b.image, b.date, b.category, !!b.isPinned, !!b.visibleOnHome]
       );
     }
     
     // 3. News
+    const uniqueNews: any[] = [];
+    const seenNewsIds = new Set<string>();
+    for (const n of (db.news || [])) {
+      if (n && n.id && !seenNewsIds.has(n.id)) {
+        seenNewsIds.add(n.id);
+        uniqueNews.push(n);
+      }
+    }
+    db.news = uniqueNews;
+
     await client.query('DELETE FROM news');
-    const newsList = db.news || [];
-    for (const n of newsList) {
+    for (const n of uniqueNews) {
       await client.query(
         `INSERT INTO news (id, title, content, date, is_pinned)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [n.id, n.title, n.content, n.date, n.isPinned]
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (id) DO UPDATE SET
+           title = EXCLUDED.title,
+           content = EXCLUDED.content,
+           date = EXCLUDED.date,
+           is_pinned = EXCLUDED.is_pinned`,
+        [n.id, n.title, n.content, n.date, !!n.isPinned]
       );
     }
     
     // 4. Events
+    const uniqueEvents: any[] = [];
+    const seenEventIds = new Set<string>();
+    for (const e of (db.events || [])) {
+      if (e && e.id && !seenEventIds.has(e.id)) {
+        seenEventIds.add(e.id);
+        uniqueEvents.push(e);
+      }
+    }
+    db.events = uniqueEvents;
+
     await client.query('DELETE FROM events');
-    for (const e of db.events) {
+    for (const e of uniqueEvents) {
       await client.query(
         `INSERT INTO events (id, title, description, date, time, venue, registrations)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [e.id, e.title, e.description, e.date, e.time, e.venue, JSON.stringify(e.registrations)]
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (id) DO UPDATE SET
+           title = EXCLUDED.title,
+           description = EXCLUDED.description,
+           date = EXCLUDED.date,
+           time = EXCLUDED.time,
+           venue = EXCLUDED.venue,
+           registrations = EXCLUDED.registrations`,
+        [e.id, e.title, e.description, e.date, e.time, e.venue, JSON.stringify(e.registrations || [])]
       );
     }
     
     // 5. Discussions
+    const uniqueDiscussions: any[] = [];
+    const seenDiscussionIds = new Set<string>();
+    for (const d of (db.discussions || [])) {
+      if (d && d.id && !seenDiscussionIds.has(d.id)) {
+        seenDiscussionIds.add(d.id);
+        uniqueDiscussions.push(d);
+      }
+    }
+    db.discussions = uniqueDiscussions;
+
     await client.query('DELETE FROM discussions');
-    for (const d of db.discussions) {
+    for (const d of uniqueDiscussions) {
       await client.query(
         `INSERT INTO discussions (id, title, content, author_id, author_name, author_role, category, created_at, reactions, is_locked, is_pinned)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [d.id, d.title, d.content, d.authorId, d.authorName, d.authorRole, d.category, d.createdAt, JSON.stringify(d.reactions), d.isLocked, d.isPinned || false]
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (id) DO UPDATE SET
+           title = EXCLUDED.title,
+           content = EXCLUDED.content,
+           author_id = EXCLUDED.author_id,
+           author_name = EXCLUDED.author_name,
+           author_role = EXCLUDED.author_role,
+           category = EXCLUDED.category,
+           created_at = EXCLUDED.created_at,
+           reactions = EXCLUDED.reactions,
+           is_locked = EXCLUDED.is_locked,
+           is_pinned = EXCLUDED.is_pinned`,
+        [d.id, d.title, d.content, d.authorId, d.authorName, d.authorRole, d.category, d.createdAt, JSON.stringify(d.reactions || {}), !!d.isLocked, !!d.isPinned]
       );
     }
     
     // 6. Comments
     await client.query('DELETE FROM comments');
-    for (const d of db.discussions) {
+    const seenCommentIds = new Set<string>();
+    for (const d of uniqueDiscussions) {
       if (d.comments) {
         for (const c of d.comments) {
-          await client.query(
-            `INSERT INTO comments (id, discussion_id, content, author_id, author_name, author_role, created_at, replies)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-            [c.id, d.id, c.content, c.authorId, c.authorName, c.authorRole, c.createdAt, JSON.stringify(c.replies)]
-          );
+          if (c && c.id && !seenCommentIds.has(c.id)) {
+            seenCommentIds.add(c.id);
+            await client.query(
+              `INSERT INTO comments (id, discussion_id, content, author_id, author_name, author_role, created_at, replies)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               ON CONFLICT (id) DO UPDATE SET
+                 discussion_id = EXCLUDED.discussion_id,
+                 content = EXCLUDED.content,
+                 author_id = EXCLUDED.author_id,
+                 author_name = EXCLUDED.author_name,
+                 author_role = EXCLUDED.author_role,
+                 created_at = EXCLUDED.created_at,
+                 replies = EXCLUDED.replies`,
+              [c.id, d.id, c.content, c.authorId, c.authorName, c.authorRole, c.createdAt, JSON.stringify(c.replies || [])]
+            );
+          }
         }
       }
     }
     
     // 7. Ballots
+    const uniqueBallots: any[] = [];
+    const seenBallotIds = new Set<string>();
+    for (const b of (db.ballots || [])) {
+      if (b && b.id && !seenBallotIds.has(b.id)) {
+        seenBallotIds.add(b.id);
+        uniqueBallots.push(b);
+      }
+    }
+    db.ballots = uniqueBallots;
+
     await client.query('DELETE FROM ballots');
-    for (const b of db.ballots) {
+    for (const b of uniqueBallots) {
       await client.query(
         `INSERT INTO ballots (id, title, description, type, options, votes, status, results_published, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [b.id, b.title, b.description, b.type, JSON.stringify(b.options), JSON.stringify(b.votes), b.status, b.resultsPublished, b.createdAt]
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (id) DO UPDATE SET
+           title = EXCLUDED.title,
+           description = EXCLUDED.description,
+           type = EXCLUDED.type,
+           options = EXCLUDED.options,
+           votes = EXCLUDED.votes,
+           status = EXCLUDED.status,
+           results_published = EXCLUDED.results_published,
+           created_at = EXCLUDED.created_at`,
+        [b.id, b.title, b.description, b.type, JSON.stringify(b.options || []), JSON.stringify(b.votes || {}), b.status, !!b.resultsPublished, b.createdAt]
       );
     }
     
     // 8. Dues Records
+    const uniqueDues: any[] = [];
+    const seenDuesIds = new Set<string>();
+    for (const r of (db.duesRecords || [])) {
+      if (r && r.id && !seenDuesIds.has(r.id)) {
+        seenDuesIds.add(r.id);
+        uniqueDues.push(r);
+      }
+    }
+    db.duesRecords = uniqueDues;
+
     await client.query('DELETE FROM dues_records');
-    for (const r of db.duesRecords) {
+    for (const r of uniqueDues) {
       await client.query(
         `INSERT INTO dues_records (id, member_id, member_name, months, amount, reference, remarks, date, status, receipt_no)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [r.id, r.memberId, r.memberName, JSON.stringify(r.months), r.amount, r.reference, r.remarks, r.date, r.status, r.receiptNo]
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO UPDATE SET
+           member_id = EXCLUDED.member_id,
+           member_name = EXCLUDED.member_name,
+           months = EXCLUDED.months,
+           amount = EXCLUDED.amount,
+           reference = EXCLUDED.reference,
+           remarks = EXCLUDED.remarks,
+           date = EXCLUDED.date,
+           status = EXCLUDED.status,
+           receipt_no = EXCLUDED.receipt_no`,
+        [r.id, r.memberId, r.memberName, JSON.stringify(r.months || []), r.amount, r.reference, r.remarks, r.date, r.status, r.receiptNo]
       );
     }
     
     // 9. Lord Patron Invites
+    const uniqueLordInvites: any[] = [];
+    const seenLordCodes = new Set<string>();
+    for (const i of (db.lordPatronInvites || [])) {
+      if (i && i.code && !seenLordCodes.has(i.code)) {
+        seenLordCodes.add(i.code);
+        uniqueLordInvites.push(i);
+      }
+    }
+    db.lordPatronInvites = uniqueLordInvites;
+
     await client.query('DELETE FROM lord_patron_invites');
-    for (const i of db.lordPatronInvites) {
+    for (const i of uniqueLordInvites) {
       await client.query(
         `INSERT INTO lord_patron_invites (code, is_used, used_by, created_at)
-         VALUES ($1, $2, $3, $4)`,
-        [i.code, i.isUsed, i.usedBy, i.createdAt]
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (code) DO UPDATE SET
+           is_used = EXCLUDED.is_used,
+           used_by = EXCLUDED.used_by,
+           created_at = EXCLUDED.created_at`,
+        [i.code, !!i.isUsed, i.usedBy, i.createdAt]
       );
     }
 
-    // 10. Patron Invitations (New)
-    await client.query('DELETE FROM patron_invitations');
+    // 10. Patron Invitations
+    const uniquePatronInvs: any[] = [];
+    const seenPatronTokens = new Set<string>();
     for (const i of (db.patronInvitations || [])) {
+      if (i && i.token && !seenPatronTokens.has(i.token)) {
+        seenPatronTokens.add(i.token);
+        uniquePatronInvs.push(i);
+      }
+    }
+    db.patronInvitations = uniquePatronInvs;
+
+    await client.query('DELETE FROM patron_invitations');
+    for (const i of uniquePatronInvs) {
       await client.query(
         `INSERT INTO patron_invitations (token, patron_type, is_used, used_by, used_by_name, created_at, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (token) DO UPDATE SET
+           patron_type = EXCLUDED.patron_type,
+           is_used = EXCLUDED.is_used,
+           used_by = EXCLUDED.used_by,
+           used_by_name = EXCLUDED.used_by_name,
+           created_at = EXCLUDED.created_at,
+           expires_at = EXCLUDED.expires_at`,
         [i.token, i.patronType, !!i.isUsed, i.usedBy || null, i.usedByName || null, i.createdAt, i.expiresAt || null]
       );
     }
+
+    // 11. Senate Motions
+    const uniqueMotions: any[] = [];
+    const seenMotionIds = new Set<string>();
+    for (const m of (db.senateMotions || [])) {
+      if (m && m.id && !seenMotionIds.has(m.id)) {
+        seenMotionIds.add(m.id);
+        uniqueMotions.push(m);
+      }
+    }
+    db.senateMotions = uniqueMotions;
+
+    await client.query('DELETE FROM senate_motions');
+    for (const m of uniqueMotions) {
+      await client.query(
+        `INSERT INTO senate_motions (id, title, description, author_id, author_name, votes, voters, status, created_at, deletion_requested, deletion_requested_by, deletion_requested_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ON CONFLICT (id) DO UPDATE SET
+           title = EXCLUDED.title,
+           description = EXCLUDED.description,
+           author_id = EXCLUDED.author_id,
+           author_name = EXCLUDED.author_name,
+           votes = EXCLUDED.votes,
+           voters = EXCLUDED.voters,
+           status = EXCLUDED.status,
+           created_at = EXCLUDED.created_at,
+           deletion_requested = EXCLUDED.deletion_requested,
+           deletion_requested_by = EXCLUDED.deletion_requested_by,
+           deletion_requested_at = EXCLUDED.deletion_requested_at`,
+        [
+          m.id,
+          m.title,
+          m.description,
+          m.authorId || null,
+          m.authorName || null,
+          JSON.stringify(m.votes || {}),
+          JSON.stringify(m.voters || []),
+          m.status || 'active',
+          m.createdAt || new Date().toISOString(),
+          !!m.deletionRequested,
+          m.deletionRequestedBy || null,
+          m.deletionRequestedAt || null
+        ]
+      );
+    }
+
+    // 12. Chat Messages (7-Day Auto-Retention)
+    const uniqueChatMsgs: any[] = filterExpiredChatMessages(db.chatMessages || []);
+    db.chatMessages = uniqueChatMsgs;
+
+    await client.query('DELETE FROM chat_messages');
+    for (const msg of uniqueChatMsgs) {
+      if (msg && msg.id && msg.content && msg.channel) {
+        await client.query(
+          `INSERT INTO chat_messages (id, content, author_id, author_name, author_role, channel, created_at, is_pinned)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (id) DO UPDATE SET
+             content = EXCLUDED.content,
+             author_id = EXCLUDED.author_id,
+             author_name = EXCLUDED.author_name,
+             author_role = EXCLUDED.author_role,
+             channel = EXCLUDED.channel,
+             created_at = EXCLUDED.created_at,
+             is_pinned = EXCLUDED.is_pinned`,
+          [
+            msg.id,
+            msg.content,
+            msg.authorId || '',
+            msg.authorName || '',
+            msg.authorRole || 'member',
+            msg.channel,
+            msg.createdAt || new Date().toISOString(),
+            !!msg.isPinned
+          ]
+        );
+      }
+    }
     
-    // 10. Site Settings
+    // 13. Site Settings
     await client.query('DELETE FROM site_settings');
     await client.query(
       `INSERT INTO site_settings (id, logo_url, hero_title, hero_subtitle, hero_banner_url, announcements, gallery, leaders, settings_json)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (id) DO UPDATE SET
+         logo_url = EXCLUDED.logo_url,
+         hero_title = EXCLUDED.hero_title,
+         hero_subtitle = EXCLUDED.hero_subtitle,
+         hero_banner_url = EXCLUDED.hero_banner_url,
+         announcements = EXCLUDED.announcements,
+         gallery = EXCLUDED.gallery,
+         leaders = EXCLUDED.leaders,
+         settings_json = EXCLUDED.settings_json`,
       [
         'default', 
-        db.appearance.logoUrl || '', 
-        db.appearance.heroTitle || '', 
-        db.appearance.heroSubtitle || '', 
-        db.appearance.heroBannerUrl || '', 
-        JSON.stringify(db.appearance.announcements || []), 
-        JSON.stringify(db.appearance.gallery || []), 
-        JSON.stringify(db.appearance.leaders || []),
+        db.appearance?.logoUrl || '', 
+        db.appearance?.heroTitle || '', 
+        db.appearance?.heroSubtitle || '', 
+        db.appearance?.heroBannerUrl || '', 
+        JSON.stringify(db.appearance?.announcements || []), 
+        JSON.stringify(db.appearance?.gallery || []), 
+        JSON.stringify(db.appearance?.leaders || []),
         JSON.stringify(db.appearance || {})
       ]
     );
@@ -751,8 +1072,47 @@ async function loadFromPostgres(): Promise<DatabaseSchema | null> {
     } catch (e) {
       db.patronInvitations = db.patronInvitations || [];
     }
+
+    // 10. Senate Motions
+    try {
+      const motionRes = await client.query('SELECT * FROM senate_motions');
+      db.senateMotions = motionRes.rows.map(r => ({
+        id: r.id,
+        title: r.title,
+        description: r.description,
+        authorId: r.author_id,
+        authorName: r.author_name,
+        votes: typeof r.votes === 'string' ? JSON.parse(r.votes) : (r.votes || {}),
+        voters: typeof r.voters === 'string' ? JSON.parse(r.voters) : (r.voters || []),
+        status: r.status,
+        createdAt: r.created_at,
+        deletionRequested: !!r.deletion_requested,
+        deletionRequestedBy: r.deletion_requested_by,
+        deletionRequestedAt: r.deletion_requested_at
+      }));
+    } catch (e) {
+      db.senateMotions = db.senateMotions || defaultDb.senateMotions;
+    }
+
+    // 11. Chat Messages (7-Day Auto-Retention)
+    try {
+      const chatRes = await client.query('SELECT * FROM chat_messages');
+      const rawMsgs = chatRes.rows.map(r => ({
+        id: r.id,
+        content: r.content,
+        authorId: r.author_id,
+        authorName: r.author_name,
+        authorRole: r.author_role,
+        channel: r.channel,
+        createdAt: r.created_at,
+        isPinned: !!r.is_pinned
+      }));
+      db.chatMessages = filterExpiredChatMessages(rawMsgs);
+    } catch (e) {
+      db.chatMessages = filterExpiredChatMessages(db.chatMessages || []);
+    }
     
-    // 9. Site Settings
+    // 12. Site Settings
     const settingRes = await client.query('SELECT * FROM site_settings WHERE id = $1', ['default']);
     if (settingRes.rows.length > 0) {
       const s = settingRes.rows[0];
@@ -1465,11 +1825,17 @@ app.delete('/api/discussions/:id', (req, res) => {
 });
 
 
-// 6. DISPATCH CHAT API
+// 6. DISPATCH CHAT API (7-Day Auto-Retention)
 app.get('/api/chats/:channel', (req, res) => {
   const { channel } = req.params;
   const db = loadDb();
-  const messages = db.chatMessages.filter(msg => msg.channel === channel);
+  // Apply 7-day retention rule
+  const activeMsgs = filterExpiredChatMessages(db.chatMessages || []);
+  if (activeMsgs.length !== (db.chatMessages || []).length) {
+    db.chatMessages = activeMsgs;
+    saveDb(db);
+  }
+  const messages = activeMsgs.filter(msg => msg.channel === channel);
   res.json(messages);
 });
 
@@ -1479,6 +1845,7 @@ app.post('/api/chats', (req, res) => {
     return res.status(400).json({ error: 'All fields are required.' });
   }
   const db = loadDb();
+  const activeMsgs = filterExpiredChatMessages(db.chatMessages || []);
   const newMsg = {
     id: 'cmsg-' + Math.random().toString(36).substr(2, 9),
     content,
@@ -1489,7 +1856,8 @@ app.post('/api/chats', (req, res) => {
     channel,
     isPinned: false
   };
-  db.chatMessages.push(newMsg);
+  activeMsgs.push(newMsg);
+  db.chatMessages = activeMsgs;
   saveDb(db);
   res.json({ success: true, message: newMsg });
 });

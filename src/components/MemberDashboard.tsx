@@ -28,7 +28,7 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
   const [activeTab, setActiveTab] = useState('overview');
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [activeChannel, setActiveChannel] = useState<'general' | 'announcements' | 'instant'>('general');
+  const [activeChannel, setActiveChannel] = useState<string>('general');
   const [ballots, setBallots] = useState<Ballot[]>([]);
   const [dues, setDues] = useState<DuesRecord[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -89,6 +89,8 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
   const [profileSuccess, setProfileSuccess] = useState('');
 
   const [receiptToPrint, setReceiptToPrint] = useState<DuesRecord | null>(null);
+  const [confirmDeleteMotionId, setConfirmDeleteMotionId] = useState<string | null>(null);
+  const [motionBannerMsg, setMotionBannerMsg] = useState<string | null>(null);
 
   // Poll for messages and load data
   useEffect(() => {
@@ -187,40 +189,46 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
   };
 
   // Motion Management Handlers for Senate Assembly
-  const handleDeleteMotion = async (id: string) => {
+  const handleToggleConfirmDelete = (id: string) => {
+    setConfirmDeleteMotionId(prev => (prev === id ? null : id));
+  };
+
+  const handleExecuteDeleteMotion = async (id: string) => {
+    setConfirmDeleteMotionId(null);
     if (isAdmin) {
-      if (window.confirm('Delete this Senate motion/proposal permanently? Voting records and results for this motion will be removed.')) {
-        try {
-          await api.deleteSenateMotion(id);
-        } catch (e) {
-          console.error(e);
-        }
-        const updated = senateMotions.filter(m => m.id !== id);
-        setSenateMotions(updated);
-        localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
+      try {
+        await api.deleteSenateMotion(id);
+      } catch (e) {
+        console.error('Error deleting motion:', e);
       }
+      const updated = senateMotions.filter(m => m.id !== id);
+      setSenateMotions(updated);
+      localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
+      setMotionBannerMsg('Senate proposal has been permanently deleted.');
+      setTimeout(() => setMotionBannerMsg(null), 5000);
+      onRefreshData();
     } else {
-      if (window.confirm('Request proposal deletion? An administrator must approve deletion before it is permanently removed.')) {
-        try {
-          await api.requestDeleteSenateMotion(id, currentUser.name || 'Senator');
-        } catch (e) {
-          console.error(e);
-        }
-        const updated = senateMotions.map(m => {
-          if (m.id === id) {
-            return {
-              ...m,
-              deletionRequested: true,
-              deletionRequestedBy: currentUser.name || 'Senator',
-              deletionRequestedAt: new Date().toISOString()
-            };
-          }
-          return m;
-        });
-        setSenateMotions(updated);
-        localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
-        alert('Deletion request submitted to administrators for review. The proposal will remain visible until approved or rejected.');
+      try {
+        await api.requestDeleteSenateMotion(id, currentUser.name || 'Senator');
+      } catch (e) {
+        console.error('Error requesting deletion:', e);
       }
+      const updated = senateMotions.map(m => {
+        if (m.id === id) {
+          return {
+            ...m,
+            deletionRequested: true,
+            deletionRequestedBy: currentUser.name || 'Senator',
+            deletionRequestedAt: new Date().toISOString()
+          };
+        }
+        return m;
+      });
+      setSenateMotions(updated);
+      localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
+      setMotionBannerMsg('Deletion request submitted to Administrators for approval.');
+      setTimeout(() => setMotionBannerMsg(null), 5000);
+      onRefreshData();
     }
   };
 
@@ -369,6 +377,34 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
     } catch (e) {
       console.error(e);
     }
+  };
+
+  // Delete chat message
+  const handleDeleteChatMessage = async (msgId: string) => {
+    try {
+      const res = await api.deleteChatMessage(msgId);
+      if (res.success) {
+        setChatMessages(prev => prev.filter(m => m.id !== msgId));
+      }
+    } catch (err) {
+      console.error('Failed to delete chat message:', err);
+    }
+  };
+
+  // Calculate remaining retention time (7-day rule)
+  const getRemainingDaysLabel = (createdAt: string) => {
+    if (!createdAt) return '';
+    const createdTime = new Date(createdAt).getTime();
+    if (isNaN(createdTime)) return '';
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    const expiresAt = createdTime + sevenDaysMs;
+    const remainingMs = expiresAt - Date.now();
+    if (remainingMs <= 0) return 'Expiring...';
+    const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    if (days > 0) return `Expires in ${days}d ${remHours}h`;
+    return `Expires in ${hours}h`;
   };
 
   // Vote ballot cast
@@ -1008,6 +1044,13 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
                     </form>
                   )}
 
+                  {motionBannerMsg && (
+                    <div className="bg-emerald-50 border-l-4 border-emerald-500 p-3 text-emerald-900 text-xs font-sans font-bold flex items-center justify-between">
+                      <span>✓ {motionBannerMsg}</span>
+                      <button onClick={() => setMotionBannerMsg(null)} className="text-emerald-700 hover:text-emerald-900 font-bold ml-2">✕</button>
+                    </div>
+                  )}
+
                   <div className="space-y-4">
                     {senateMotions.length > 0 ? (
                       senateMotions.map((motion) => {
@@ -1016,6 +1059,7 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
                         const ayePercent = totalVotes > 0 ? Math.round(((motion.votes?.aye || 0) / totalVotes) * 100) : 0;
                         const nayPercent = totalVotes > 0 ? Math.round(((motion.votes?.nay || 0) / totalVotes) * 100) : 0;
                         const isConcluded = motion.status === 'concluded' || motion.status === 'closed';
+                        const isConfirmingDelete = confirmDeleteMotionId === motion.id;
 
                         return (
                           <div key={motion.id} className="border border-gray-200 p-5 bg-[#F5F1E8]/30 space-y-4">
@@ -1025,6 +1069,35 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
                                 <span>
                                   <strong>Deletion Request Pending:</strong> Requested by {motion.deletionRequestedBy || 'Senator'}. Awaiting Administrator approval in the Admin Panel.
                                 </span>
+                              </div>
+                            )}
+
+                            {/* Inline Delete Confirmation Prompt */}
+                            {isConfirmingDelete && (
+                              <div className="bg-red-50 border-l-4 border-red-600 p-3 space-y-2 text-xs font-sans">
+                                <div className="flex items-center space-x-2 text-red-900 font-bold">
+                                  <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                                  <span>{isAdmin ? 'Confirm permanent deletion of this proposal?' : 'Submit deletion request to Administrators?'}</span>
+                                </div>
+                                <p className="text-red-800 text-[11px]">
+                                  {isAdmin 
+                                    ? 'This action cannot be undone. All votes recorded for this motion will be permanently deleted.'
+                                    : 'Administrators will review this request in the Admin Console. The proposal will remain visible until approved or rejected.'}
+                                </p>
+                                <div className="flex items-center space-x-2 pt-1">
+                                  <button
+                                    onClick={() => handleExecuteDeleteMotion(motion.id)}
+                                    className="px-3 py-1 bg-red-700 hover:bg-red-800 text-white font-bold text-[10px] uppercase cursor-pointer"
+                                  >
+                                    Yes, {isAdmin ? 'Delete Permanently' : 'Request Deletion'}
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteMotionId(null)}
+                                    className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold text-[10px] uppercase cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
                               </div>
                             )}
 
@@ -1120,9 +1193,11 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
                                     </button>
                                   )}
                                   <button
-                                    onClick={() => handleDeleteMotion(motion.id)}
+                                    onClick={() => handleToggleConfirmDelete(motion.id)}
                                     className={`px-2.5 py-1 font-bold uppercase tracking-wider transition-colors flex items-center space-x-1 cursor-pointer ${
-                                      motion.deletionRequested && !isAdmin
+                                      isConfirmingDelete
+                                        ? 'bg-red-700 text-white border border-red-800'
+                                        : motion.deletionRequested && !isAdmin
                                         ? 'bg-amber-100 text-amber-800 border border-amber-300'
                                         : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-700 hover:text-white'
                                     }`}
@@ -1457,43 +1532,118 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
 
             {/* TAB 4: DISPATCH CHAT */}
             {activeTab === 'chat' && (
-              <div className="bg-white border border-gray-200 shadow-sm grid grid-cols-1 md:grid-cols-12 h-[600px] overflow-hidden">
+              <div className="bg-white border border-gray-200 shadow-sm grid grid-cols-1 md:grid-cols-12 h-[650px] overflow-hidden">
                 
                 {/* Channels selection bar */}
-                <div className="md:col-span-3 bg-[#0A1F44] border-r border-gray-700 p-4 space-y-4">
-                  <h4 className="font-serif font-bold text-xs uppercase tracking-wider text-[#C9A227] border-b border-[#C9A227]/30 pb-2">
-                    Discussion Channels
-                  </h4>
-                  <div className="space-y-1">
-                    {[
-                      { id: 'general', label: '💬 General Room' },
-                      { id: 'announcements', label: '📣 Announcements' },
-                      { id: 'instant', label: '⚡ Instant Chat' }
-                    ].map((ch) => (
-                      <button
-                        key={ch.id}
-                        onClick={() => setActiveChannel(ch.id as any)}
-                        className={`w-full text-left text-xs uppercase tracking-wider font-sans px-3 py-2.5 border transition-all ${
-                          activeChannel === ch.id
-                            ? 'bg-[#0D2B4E] border-[#C9A227] text-[#C9A227] font-bold'
-                            : 'border-transparent text-gray-300 hover:bg-gray-800'
-                        }`}
-                      >
-                        {ch.label}
-                      </button>
-                    ))}
+                <div className="md:col-span-4 lg:col-span-3 bg-[#0A1F44] border-r border-gray-700 p-3 space-y-4 overflow-y-auto">
+                  
+                  {/* Channels section */}
+                  <div>
+                    <h4 className="font-serif font-bold text-[11px] uppercase tracking-wider text-[#C9A227] border-b border-[#C9A227]/30 pb-1.5 mb-2">
+                      Public Channels
+                    </h4>
+                    <div className="space-y-1">
+                      {[
+                        { id: 'general', label: '💬 General Room' },
+                        { id: 'announcements', label: '📣 Announcements' },
+                        { id: 'instant', label: '⚡ Instant Chat' }
+                      ].map((ch) => (
+                        <button
+                          key={ch.id}
+                          onClick={() => setActiveChannel(ch.id)}
+                          className={`w-full text-left text-xs uppercase tracking-wider font-sans px-3 py-2 border transition-all ${
+                            activeChannel === ch.id
+                              ? 'bg-[#0D2B4E] border-[#C9A227] text-[#C9A227] font-bold'
+                              : 'border-transparent text-gray-300 hover:bg-gray-800'
+                          }`}
+                        >
+                          {ch.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
+
+                  {/* Direct Messages (DMs) section */}
+                  <div>
+                    <div className="flex items-center justify-between border-b border-[#C9A227]/30 pb-1.5 mb-2">
+                      <h4 className="font-serif font-bold text-[11px] uppercase tracking-wider text-[#C9A227]">
+                        Direct Messages (DMs)
+                      </h4>
+                      <span className="text-[9px] bg-[#C9A227]/20 text-[#C9A227] px-1 py-0.5 rounded font-bold">
+                        7-Day Retention
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-1 max-h-56 overflow-y-auto">
+                      {members.filter(m => m.id !== currentUser.id).length > 0 ? (
+                        members.filter(m => m.id !== currentUser.id).map((m) => {
+                          const dmChannelId = `dm_${[currentUser.id, m.id].sort().join('_')}`;
+                          const isSelected = activeChannel === dmChannelId;
+                          return (
+                            <button
+                              key={m.id}
+                              onClick={() => setActiveChannel(dmChannelId)}
+                              className={`w-full text-left text-xs font-sans px-2.5 py-2 border flex items-center space-x-2 transition-all ${
+                                isSelected
+                                  ? 'bg-[#0D2B4E] border-[#C9A227] text-[#C9A227] font-bold'
+                                  : 'border-transparent text-gray-300 hover:bg-gray-800'
+                              }`}
+                            >
+                              <div className="w-5 h-5 rounded-full bg-amber-500/20 text-[#C9A227] font-bold text-[9px] flex items-center justify-center shrink-0 border border-[#C9A227]/40">
+                                {m.name ? m.name.charAt(0).toUpperCase() : 'M'}
+                              </div>
+                              <div className="truncate flex-1">
+                                <span className="block truncate">{m.name}</span>
+                                <span className="text-[8px] text-gray-400 block font-normal capitalize">
+                                  {m.position || m.role}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <p className="text-[10px] text-gray-400 italic p-1">No other members available.</p>
+                      )}
+                    </div>
+                  </div>
+
                 </div>
 
                 {/* Messages pane */}
-                <div className="md:col-span-9 flex flex-col h-full justify-between bg-gray-50">
+                <div className="md:col-span-8 lg:col-span-9 flex flex-col h-full justify-between bg-gray-50">
                   
-                  {/* Active channel head */}
-                  <div className="bg-white p-3 border-b border-gray-200 flex justify-between items-center">
-                    <span className="text-xs font-serif font-bold text-[#0A1F44] uppercase tracking-wider">
-                      Channel: #{activeChannel} Chatroom
-                    </span>
-                    <span className="text-[10px] text-gray-400">Refreshes dynamically</span>
+                  {/* Active channel head & policy info */}
+                  <div className="bg-white p-3 border-b border-gray-200 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-serif font-bold text-[#0A1F44] uppercase tracking-wider flex items-center space-x-2">
+                        {activeChannel.startsWith('dm_') ? (
+                          <>
+                            <span className="bg-amber-100 text-[#0A1F44] px-1.5 py-0.5 text-[9px] font-bold uppercase border border-amber-300">
+                              Direct Message (DM)
+                            </span>
+                            <span>
+                              With {
+                                (() => {
+                                  const parts = activeChannel.replace('dm_', '').split('_');
+                                  const otherId = parts.find(id => id !== currentUser.id);
+                                  const otherMember = members.find(m => m.id === otherId);
+                                  return otherMember ? otherMember.name : 'Member';
+                                })()
+                              }
+                            </span>
+                          </>
+                        ) : (
+                          <span>Channel: #{activeChannel} Chatroom</span>
+                        )}
+                      </span>
+                      <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 border border-amber-200 font-bold">
+                        ⏱️ 7-Day Auto-Expiry Policy
+                      </span>
+                    </div>
+
+                    <p className="text-[10px] text-gray-500 font-sans">
+                      💬 Messages in public rooms and DMs stay active for 7 days before automatically disappearing from the chat screen.
+                    </p>
                   </div>
 
                   {/* Messages container list */}
@@ -1501,14 +1651,33 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
                     {chatMessages.length > 0 ? (
                       chatMessages.map((msg) => (
                         <div key={msg.id} className="flex flex-col space-y-1">
-                          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                            <span className="text-xs font-serif font-bold text-[#0A1F44]">{msg.authorName}</span>
-                            <span className="text-[9px] uppercase tracking-wider bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-none font-sans font-bold">
-                              {msg.authorRole === 'admin' ? 'Admin' : msg.authorRole === 'lord_patron' ? 'Patron' : 'Member'}
-                            </span>
-                            {renderAuthorBadges(msg.authorId)}
-                            <span className="text-[8px] text-gray-400 font-sans">{new Date(msg.createdAt).toLocaleTimeString()}</span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                              <span className="text-xs font-serif font-bold text-[#0A1F44]">{msg.authorName}</span>
+                              <span className="text-[9px] uppercase tracking-wider bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-none font-sans font-bold">
+                                {msg.authorRole === 'admin' ? 'Admin' : msg.authorRole === 'lord_patron' ? 'Patron' : 'Member'}
+                              </span>
+                              {renderAuthorBadges(msg.authorId)}
+                              <span className="text-[8px] text-gray-400 font-sans">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              
+                              {/* Remaining Retention badge */}
+                              <span className="text-[8px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.2 rounded font-mono">
+                                ⏳ {getRemainingDaysLabel(msg.createdAt)}
+                              </span>
+                            </div>
+
+                            {/* Delete msg button if author or admin */}
+                            {(msg.authorId === currentUser.id || currentUser.role === 'admin') && (
+                              <button
+                                onClick={() => handleDeleteChatMessage(msg.id)}
+                                title="Delete message"
+                                className="text-red-400 hover:text-red-600 text-[10px] p-1 font-bold transition-colors"
+                              >
+                                Delete
+                              </button>
+                            )}
                           </div>
+
                           <div className={`p-3 text-xs max-w-xl font-sans rounded-none relative border ${
                             msg.authorId === currentUser.id
                               ? 'bg-amber-50 border-[#C9A227]/40 text-[#0A1F44]'
@@ -1526,7 +1695,8 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
                     ) : (
                       <div className="text-center py-20 text-gray-400">
                         <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-xs uppercase tracking-widest font-sans">No messages posted in this channel yet.</p>
+                        <p className="text-xs uppercase tracking-widest font-sans">No messages posted in this room yet.</p>
+                        <p className="text-[10px] text-gray-400 font-sans mt-1">Send a message below. All messages stay active for 7 days.</p>
                       </div>
                     )}
                   </div>
@@ -1536,16 +1706,17 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
                     <input
                       type="text"
                       required
-                      placeholder="Compose message..."
+                      placeholder={activeChannel.startsWith('dm_') ? "Send a direct message..." : "Compose channel message..."}
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       className="flex-1 bg-[#F5F1E8] text-xs px-3 py-2 border border-gray-300 focus:outline-none focus:border-[#C9A227] rounded-none"
                     />
                     <button
                       type="submit"
-                      className="px-4 py-2 bg-[#0A1F44] text-white hover:bg-[#C9A227] hover:text-[#0A1F44] transition-colors font-bold text-xs uppercase"
+                      className="px-4 py-2 bg-[#0A1F44] text-white hover:bg-[#C9A227] hover:text-[#0A1F44] transition-colors font-bold text-xs uppercase flex items-center space-x-1"
                     >
                       <Send className="h-4 w-4 shrink-0" />
+                      <span>Send</span>
                     </button>
                   </form>
 

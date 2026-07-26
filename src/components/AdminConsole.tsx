@@ -477,14 +477,12 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   };
 
   const handleApproveDeleteMotion = async (id: string) => {
-    if (confirm('Approve deletion request and permanently delete this Senate proposal?')) {
-      try {
-        await api.approveDeleteSenateMotion(id);
-        triggerFeedback('Proposal deletion request approved and permanently removed.');
-        loadAdminData();
-      } catch (err: any) {
-        triggerFeedback(err.message, 'error');
-      }
+    try {
+      await api.approveDeleteSenateMotion(id);
+      triggerFeedback('Proposal deletion request approved and permanently removed.');
+      loadAdminData();
+    } catch (err: any) {
+      triggerFeedback(err.message, 'error');
     }
   };
 
@@ -499,14 +497,12 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   };
 
   const handleDeleteSenateMotion = async (id: string) => {
-    if (confirm('Delete this Senate motion/proposal permanently? Voting records and results for this motion will be removed immediately.')) {
-      try {
-        await api.deleteSenateMotion(id);
-        triggerFeedback('Senate motion/proposal deleted successfully.');
-        loadAdminData();
-      } catch (err: any) {
-        triggerFeedback(err.message, 'error');
-      }
+    try {
+      await api.deleteSenateMotion(id);
+      triggerFeedback('Senate motion/proposal deleted successfully.');
+      loadAdminData();
+    } catch (err: any) {
+      triggerFeedback(err.message, 'error');
     }
   };
 
