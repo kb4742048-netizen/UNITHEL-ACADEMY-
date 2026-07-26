@@ -6,7 +6,7 @@ import {
   RefreshCw, Database, Info, Upload, Key, ListFilter, X, LogOut, Globe, Camera,
   Crown, Copy, Link as LinkIcon
 } from 'lucide-react';
-import { Member, Blog, Event, Discussion, Ballot, DuesRecord, LordPatronInvite, PatronInvite, WebsiteAppearance, News, LeadershipMember } from '../types';
+import { Member, Blog, Event, Discussion, Ballot, SenateMotion, DuesRecord, LordPatronInvite, PatronInvite, WebsiteAppearance, News, LeadershipMember } from '../types';
 import * as api from '../api';
 import { getMilitaryInsignia, getMemberTitle, OFFICIAL_POSITIONS, AVAILABLE_POSITIONS } from '../utils/ranks';
 import { compressImageFile } from '../utils/imageCompressor';
@@ -31,6 +31,9 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   const [members, setMembers] = useState<Member[]>([]);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [ballots, setBallots] = useState<Ballot[]>([]);
+  const [senateMotions, setSenateMotions] = useState<SenateMotion[]>([]);
+  const [newMotionTitle, setNewMotionTitle] = useState('');
+  const [newMotionDesc, setNewMotionDesc] = useState('');
   const [dues, setDues] = useState<DuesRecord[]>([]);
   const [invites, setInvites] = useState<LordPatronInvite[]>([]);
   const [patronInvites, setPatronInvites] = useState<PatronInvite[]>([]);
@@ -147,7 +150,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   const loadAdminData = async () => {
     setLoading(true);
     try {
-      const [mems, discs, bals, duesRecords, invs, patronInvs, appData, newsData, dbStatus] = await Promise.all([
+      const [mems, discs, bals, duesRecords, invs, patronInvs, appData, newsData, dbStatus, motions] = await Promise.all([
         api.fetchMembers(),
         api.fetchDiscussions(),
         api.fetchBallots(),
@@ -156,12 +159,14 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
         api.fetchPatronInvites().catch(() => []),
         api.fetchAppearance(),
         api.fetchNews(),
-        api.fetchDbStatus().catch(() => ({ isPostgres: false }))
+        api.fetchDbStatus().catch(() => ({ isPostgres: false })),
+        api.fetchSenateMotions().catch(() => [])
       ]);
       
       setMembers(mems);
       setDiscussions(discs);
       setBallots(bals);
+      setSenateMotions(motions);
       setDues(duesRecords);
       setInvites(invs);
       setPatronInvites(patronInvs);
@@ -427,6 +432,42 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       } catch (err: any) {
         triggerFeedback(err.message, 'error');
       }
+    }
+  };
+
+  const handleCreateSenateMotion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMotionTitle.trim() || !newMotionDesc.trim()) return;
+    try {
+      await api.createSenateMotion({ title: newMotionTitle, description: newMotionDesc });
+      triggerFeedback('New Senate motion published successfully!');
+      setNewMotionTitle('');
+      setNewMotionDesc('');
+      loadAdminData();
+    } catch (err: any) {
+      triggerFeedback(err.message, 'error');
+    }
+  };
+
+  const handleDeleteSenateMotion = async (id: string) => {
+    if (confirm('Delete this Senate motion/proposal permanently? Voting records and results for this motion will be removed.')) {
+      try {
+        await api.deleteSenateMotion(id);
+        triggerFeedback('Senate motion/proposal deleted successfully.');
+        loadAdminData();
+      } catch (err: any) {
+        triggerFeedback(err.message, 'error');
+      }
+    }
+  };
+
+  const handleUpdateSenateMotionStatus = async (id: string, status: 'active' | 'concluded' | 'cancelled') => {
+    try {
+      await api.updateSenateMotionStatus(id, status);
+      triggerFeedback(`Senate motion status updated to ${status}.`);
+      loadAdminData();
+    } catch (err: any) {
+      triggerFeedback(err.message, 'error');
     }
   };
 
@@ -1867,6 +1908,144 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                           )}
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+
+                  {/* Senate Legislative Motions & Proposals Management */}
+                  <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
+                    <div className="border-b pb-3 border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h2 className="font-serif font-bold text-base text-[#0A1F44] uppercase tracking-wide flex items-center space-x-2">
+                          <Award className="h-5 w-5 text-[#C9A227]" />
+                          <span>Senate Legislative Motions & Proposals</span>
+                        </h2>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Manage active or completed legislative motions, monitor election & voting results, and cancel or delete finished proposals.
+                        </p>
+                      </div>
+                      <span className="text-xs font-bold text-[#0A1F44] bg-[#F5F1E8] px-3 py-1 border border-gray-300 rounded-none shrink-0 self-start sm:self-center">
+                        Total Motions: {senateMotions.length}
+                      </span>
+                    </div>
+
+                    {/* Form to Draft / Propose New Senate Motion */}
+                    <form onSubmit={handleCreateSenateMotion} className="bg-[#F5F1E8] p-5 border border-gray-300 space-y-4 text-xs font-sans">
+                      <h3 className="font-serif font-bold text-xs uppercase text-[#0A1F44] tracking-wider border-b border-gray-300 pb-2">
+                        Draft & Propose New Senate Motion
+                      </h3>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block font-bold text-gray-700 uppercase mb-1">Motion Title</label>
+                          <input
+                            type="text"
+                            required
+                            value={newMotionTitle}
+                            onChange={(e) => setNewMotionTitle(e.target.value)}
+                            placeholder="e.g. Motion #84: Amend Chapter Operating Grants Policy"
+                            className="w-full bg-white border border-gray-300 px-3 py-2 focus:outline-none text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-gray-700 uppercase mb-1">Motion Description & Purpose</label>
+                          <textarea
+                            required
+                            rows={3}
+                            value={newMotionDesc}
+                            onChange={(e) => setNewMotionDesc(e.target.value)}
+                            placeholder="Detail the legislative background, constraints, and voting terms..."
+                            className="w-full bg-white border border-gray-300 px-3 py-2 focus:outline-none text-xs"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-[#0D2B4E] hover:bg-[#C9A227] hover:text-[#0A1F44] text-white uppercase font-bold text-[10px] tracking-widest transition-colors cursor-pointer"
+                      >
+                        Publish Senate Motion
+                      </button>
+                    </form>
+
+                    {/* Motions List */}
+                    <div className="space-y-4">
+                      <h3 className="font-serif font-bold text-xs uppercase text-[#0A1F44] tracking-wider">
+                        Active & Historic Senate Motions
+                      </h3>
+                      {senateMotions.length > 0 ? (
+                        <div className="divide-y divide-gray-200 border border-gray-200">
+                          {senateMotions.map((motion) => {
+                            const totalVotes = (motion.votes?.aye || 0) + (motion.votes?.nay || 0) + (motion.votes?.abstain || 0);
+                            const ayePercent = totalVotes > 0 ? Math.round(((motion.votes?.aye || 0) / totalVotes) * 100) : 0;
+                            const nayPercent = totalVotes > 0 ? Math.round(((motion.votes?.nay || 0) / totalVotes) * 100) : 0;
+
+                            return (
+                              <div key={motion.id} className="p-5 bg-white space-y-3 hover:bg-slate-50 transition-colors">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                  <div>
+                                    <div className="flex items-center space-x-2">
+                                      <span className="font-serif font-bold text-sm text-[#0A1F44]">{motion.title}</span>
+                                      <span className={`text-[9px] font-bold uppercase px-2 py-0.5 border ${
+                                        motion.status === 'active' 
+                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                          : motion.status === 'concluded'
+                                          ? 'bg-slate-100 text-slate-700 border-slate-300'
+                                          : 'bg-red-50 text-red-800 border-red-300'
+                                      }`}>
+                                        {motion.status === 'active' ? '● Active Voting' : motion.status === 'concluded' ? '✓ Voting Concluded' : '✕ Canceled'}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 mt-1">{motion.description}</p>
+                                  </div>
+
+                                  <div className="flex items-center space-x-2 shrink-0">
+                                    {motion.status === 'active' && (
+                                      <button
+                                        onClick={() => handleUpdateSenateMotionStatus(motion.id, 'concluded')}
+                                        className="px-2.5 py-1 bg-slate-800 text-white hover:bg-slate-900 text-[10px] uppercase font-bold cursor-pointer"
+                                      >
+                                        Conclude Voting
+                                      </button>
+                                    )}
+                                    {motion.status === 'concluded' && (
+                                      <button
+                                        onClick={() => handleUpdateSenateMotionStatus(motion.id, 'active')}
+                                        className="px-2.5 py-1 border border-slate-300 hover:border-[#0A1F44] text-[10px] uppercase font-bold text-slate-700 cursor-pointer"
+                                      >
+                                        Reopen Voting
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleDeleteSenateMotion(motion.id)}
+                                      className="px-2.5 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white text-[10px] uppercase font-bold transition-colors flex items-center space-x-1 cursor-pointer"
+                                    >
+                                      <Trash className="h-3 w-3" />
+                                      <span>Delete Motion</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Tally details */}
+                                <div className="bg-[#F5F1E8]/50 p-3 border border-gray-200 text-xs font-sans flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                  <div className="flex items-center space-x-4 text-[11px] font-bold text-slate-700">
+                                    <span className="text-emerald-700">Aye: {motion.votes?.aye || 0} ({ayePercent}%)</span>
+                                    <span className="text-red-700">Nay: {motion.votes?.nay || 0} ({nayPercent}%)</span>
+                                    <span className="text-slate-600">Abstain: {motion.votes?.abstain || 0}</span>
+                                    <span className="text-[#0A1F44]">Total: {totalVotes} Votes</span>
+                                  </div>
+                                  <div className="w-full sm:w-48 h-2 bg-gray-200 flex overflow-hidden border border-gray-300">
+                                    <div style={{ width: `${ayePercent}%` }} className="bg-emerald-600 h-full" />
+                                    <div style={{ width: `${nayPercent}%` }} className="bg-red-600 h-full" />
+                                    <div style={{ width: `${100 - ayePercent - nayPercent}%` }} className="bg-slate-400 h-full" />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center text-gray-400 uppercase text-xs tracking-wider border border-dashed border-gray-300 bg-[#F5F1E8]/20">
+                          No Senate legislative motions currently recorded. Use the draft form above to create a proposal.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

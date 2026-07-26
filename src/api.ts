@@ -1,4 +1,4 @@
-import { Member, Blog, Event, Discussion, ChatMessage, Ballot, DuesRecord, LordPatronInvite, WebsiteAppearance, News } from './types';
+import { Member, Blog, Event, Discussion, ChatMessage, Ballot, SenateMotion, DuesRecord, LordPatronInvite, WebsiteAppearance, News } from './types';
 
 const API_BASE = '';
 
@@ -256,6 +256,45 @@ export async function togglePublishBallotResults(id: string): Promise<any> {
 
 export async function deleteBallot(id: string): Promise<any> {
   const res = await fetch(`${API_BASE}/api/ballots/${id}`, { method: 'DELETE' });
+  return res.json();
+}
+
+// Senate Motions API
+export async function fetchSenateMotions(): Promise<SenateMotion[]> {
+  const res = await fetch(`${API_BASE}/api/senate-motions`);
+  if (!res.ok) throw new Error('Failed to fetch Senate motions.');
+  return res.json();
+}
+
+export async function createSenateMotion(data: { title: string; description: string }): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/senate-motions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  return res.json();
+}
+
+export async function voteSenateMotion(id: string, voterId: string, option: 'aye' | 'nay' | 'abstain'): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/senate-motions/${id}/vote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voterId, option })
+  });
+  return res.json();
+}
+
+export async function updateSenateMotionStatus(id: string, status: 'active' | 'concluded' | 'cancelled'): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/senate-motions/${id}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status })
+  });
+  return res.json();
+}
+
+export async function deleteSenateMotion(id: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/senate-motions/${id}`, { method: 'DELETE' });
   return res.json();
 }
 

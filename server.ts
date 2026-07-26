@@ -26,6 +26,7 @@ interface DatabaseSchema {
   discussions: any[];
   chatMessages: any[];
   ballots: any[];
+  senateMotions?: any[];
   duesRecords: any[];
   lordPatronInvites: any[];
   patronInvitations: any[];
@@ -165,6 +166,11 @@ const defaultDb: DatabaseSchema = {
       resultsPublished: false,
       createdAt: '2026-07-24T08:00:00Z'
     }
+  ],
+  senateMotions: [
+    { id: 'motion-1', title: 'Motion #81: Establish Regional Scholarly Research Chapters', description: 'Proposed to fund regional hubs to guide newly registered Scholars in high-impact academic fields.', votes: { aye: 4, nay: 1, abstain: 1 }, voters: ['admin'], status: 'active', createdAt: '2026-07-20T10:00:00Z' },
+    { id: 'motion-2', title: 'Motion #82: Approve Sessional Financial Audit Guidelines', description: 'Proposed to institute strict quarterly auditing for all dues collections and disbursements.', votes: { aye: 3, nay: 2, abstain: 0 }, voters: [], status: 'active', createdAt: '2026-07-21T11:00:00Z' },
+    { id: 'motion-3', title: 'Motion #83: Extend Council Terms for Elected Senators', description: 'Debate on extending the tenure of commissioned Senators from one academic year to two.', votes: { aye: 2, nay: 3, abstain: 1 }, voters: [], status: 'active', createdAt: '2026-07-22T12:00:00Z' }
   ],
   duesRecords: [],
   lordPatronInvites: [
@@ -1593,6 +1599,87 @@ app.delete('/api/ballots/:id', (req, res) => {
     return res.json({ success: true });
   }
   res.status(404).json({ error: 'Ballot not found.' });
+});
+
+// 7B. SENATE LEGISLATIVE MOTIONS & PROPOSALS API
+app.get('/api/senate-motions', (req, res) => {
+  const db = loadDb();
+  if (!db.senateMotions) {
+    db.senateMotions = defaultDb.senateMotions || [];
+    saveDb(db);
+  }
+  res.json(db.senateMotions);
+});
+
+app.post('/api/senate-motions', (req, res) => {
+  const { title, description } = req.body;
+  if (!title || !description) {
+    return res.status(400).json({ error: 'Title and description are required.' });
+  }
+  const db = loadDb();
+  if (!db.senateMotions) db.senateMotions = [];
+  const newMotion = {
+    id: `motion-${Date.now()}`,
+    title,
+    description,
+    votes: { aye: 0, nay: 0, abstain: 0 },
+    voters: [],
+    status: 'active',
+    createdAt: new Date().toISOString()
+  };
+  db.senateMotions.unshift(newMotion);
+  saveDb(db);
+  res.json({ success: true, motion: newMotion });
+});
+
+app.post('/api/senate-motions/:id/vote', (req, res) => {
+  const { id } = req.params;
+  const { voterId, option } = req.body; // option: 'aye' | 'nay' | 'abstain'
+  const db = loadDb();
+  if (!db.senateMotions) db.senateMotions = [];
+  const motion = db.senateMotions.find((m: any) => m.id === id);
+  if (!motion) {
+    return res.status(404).json({ error: 'Senate motion not found.' });
+  }
+  if (!motion.voters) motion.voters = [];
+  if (motion.voters.includes(voterId)) {
+    return res.status(400).json({ error: 'You have already voted on this motion.' });
+  }
+  if (!motion.votes) motion.votes = { aye: 0, nay: 0, abstain: 0 };
+  if (option === 'aye' || option === 'nay' || option === 'abstain') {
+    motion.votes[option] = (motion.votes[option] || 0) + 1;
+    motion.voters.push(voterId);
+    saveDb(db);
+    return res.json({ success: true, motion });
+  }
+  res.status(400).json({ error: 'Invalid vote option.' });
+});
+
+app.post('/api/senate-motions/:id/status', (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body; // 'active' | 'concluded' | 'cancelled'
+  const db = loadDb();
+  if (!db.senateMotions) db.senateMotions = [];
+  const motion = db.senateMotions.find((m: any) => m.id === id);
+  if (!motion) {
+    return res.status(404).json({ error: 'Senate motion not found.' });
+  }
+  motion.status = status;
+  saveDb(db);
+  res.json({ success: true, motion });
+});
+
+app.delete('/api/senate-motions/:id', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  if (!db.senateMotions) db.senateMotions = [];
+  const initialLen = db.senateMotions.length;
+  db.senateMotions = db.senateMotions.filter((m: any) => m.id !== id);
+  if (db.senateMotions.length < initialLen) {
+    saveDb(db);
+    return res.json({ success: true, message: 'Senate motion/proposal deleted successfully.' });
+  }
+  res.status(404).json({ error: 'Senate motion not found.' });
 });
 
 

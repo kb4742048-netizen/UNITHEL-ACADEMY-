@@ -111,6 +111,20 @@ export interface ChatMessage {
   isPinned: boolean;
 }
 
+export interface SenateMotion {
+  id: string;
+  title: string;
+  description: string;
+  votes: {
+    aye: number;
+    nay: number;
+    abstain: number;
+  };
+  voters: string[];
+  status: 'active' | 'concluded' | 'cancelled';
+  createdAt: string;
+}
+
 export interface Ballot {
   id: string;
   title: string;

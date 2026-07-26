@@ -4,7 +4,7 @@ import {
   Send, Plus, MessageCircle, Heart, Lock, Pin, Check, Download, AlertCircle, FileText, CheckCircle, X,
   Upload, Trash, Camera
 } from 'lucide-react';
-import { Member, Blog, Event, Discussion, ChatMessage, Ballot, DuesRecord } from '../types';
+import { Member, Blog, Event, Discussion, ChatMessage, Ballot, SenateMotion, DuesRecord } from '../types';
 import * as api from '../api';
 import { getMilitaryInsignia, getMemberTitle, OFFICIAL_POSITIONS, AVAILABLE_POSITIONS } from '../utils/ranks';
 import { compressImageFile } from '../utils/imageCompressor';
@@ -23,6 +23,7 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
   const isProvost = currentUser?.position === 'Provost';
   const isAdmin = currentUser?.role === 'admin';
   const showSenateTab = isSenator || isChancellor || isProvost || isAdmin;
+  const canPostMotion = isAdmin || isSenator || isChancellor || isProvost;
 
   const [activeTab, setActiveTab] = useState('overview');
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
@@ -33,13 +34,17 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Senate voting motions (tracked locally for mock interactive Senate experience)
+  // Senate voting motions state and draft modal
+  const [showDraftMotion, setShowDraftMotion] = useState(false);
+  const [draftMotionTitle, setDraftMotionTitle] = useState('');
+  const [draftMotionDesc, setDraftMotionDesc] = useState('');
+
   const [senateMotions, setSenateMotions] = useState<any[]>(() => {
     const saved = localStorage.getItem('senate_motions_voted');
     const defaultMotions = [
-      { id: 'motion-1', title: 'Motion #81: Establish Regional Scholarly Research Chapters', description: 'Proposed to fund regional hubs to guide newly registered Scholars in high-impact academic fields.', votes: { aye: 4, nay: 1, abstain: 1 }, voters: ['admin'] },
-      { id: 'motion-2', title: 'Motion #82: Approve Sessional Financial Audit Guidelines', description: 'Proposed to institute strict quarterly auditing for all dues collections and disbursements.', votes: { aye: 3, nay: 2, abstain: 0 }, voters: [] },
-      { id: 'motion-3', title: 'Motion #83: Extend Council Terms for Elected Senators', description: 'Debate on extending the tenure of commissioned Senators from one academic year to two.', votes: { aye: 2, nay: 3, abstain: 1 }, voters: [] }
+      { id: 'motion-1', title: 'Motion #81: Establish Regional Scholarly Research Chapters', description: 'Proposed to fund regional hubs to guide newly registered Scholars in high-impact academic fields.', votes: { aye: 4, nay: 1, abstain: 1 }, voters: ['admin'], status: 'active', createdAt: '2026-07-20T10:00:00Z' },
+      { id: 'motion-2', title: 'Motion #82: Approve Sessional Financial Audit Guidelines', description: 'Proposed to institute strict quarterly auditing for all dues collections and disbursements.', votes: { aye: 3, nay: 2, abstain: 0 }, voters: [], status: 'active', createdAt: '2026-07-21T11:00:00Z' },
+      { id: 'motion-3', title: 'Motion #83: Extend Council Terms for Elected Senators', description: 'Debate on extending the tenure of commissioned Senators from one academic year to two.', votes: { aye: 2, nay: 3, abstain: 1 }, voters: [], status: 'active', createdAt: '2026-07-22T12:00:00Z' }
     ];
     if (saved) {
       try {
@@ -102,16 +107,20 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [discData, balData, duesData, membersData] = await Promise.all([
+      const [discData, balData, duesData, membersData, motionsData] = await Promise.all([
         api.fetchDiscussions(),
         api.fetchBallots(),
         api.fetchDues(),
-        api.fetchMembers().catch(() => [])
+        api.fetchMembers().catch(() => []),
+        api.fetchSenateMotions().catch(() => [])
       ]);
       setDiscussions(discData);
       setBallots(balData);
       setDues(duesData.filter(d => d.memberId === currentUser.id));
       setMembers(membersData);
+      if (motionsData && motionsData.length > 0) {
+        setSenateMotions(motionsData);
+      }
       if (activeTab === 'chat') {
         await loadChatMessages();
       }
@@ -175,6 +184,81 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
     } catch (err: any) {
       setForumError(err.message || 'Error creating topic.');
     }
+  };
+
+  // Motion Management Handlers for Senate Assembly
+  const handleDeleteMotion = async (id: string) => {
+    if (window.confirm('Delete this Senate motion/proposal permanently? Voting records and results for this motion will be removed.')) {
+      try {
+        await api.deleteSenateMotion(id);
+      } catch (e) {
+        console.error(e);
+      }
+      const updated = senateMotions.filter(m => m.id !== id);
+      setSenateMotions(updated);
+      localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
+    }
+  };
+
+  const handleStatusChangeMotion = async (id: string, status: 'active' | 'concluded' | 'cancelled') => {
+    try {
+      await api.updateSenateMotionStatus(id, status);
+    } catch (e) {
+      console.error(e);
+    }
+    const updated = senateMotions.map(m => m.id === id ? { ...m, status } : m);
+    setSenateMotions(updated);
+    localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
+  };
+
+  const handleVoteMotion = async (motionId: string, option: 'aye' | 'nay' | 'abstain') => {
+    try {
+      await api.voteSenateMotion(motionId, currentUser.id, option);
+    } catch (e) {
+      console.error(e);
+    }
+    const updated = senateMotions.map(m => {
+      if (m.id === motionId) {
+        const votes = { ...(m.votes || { aye: 0, nay: 0, abstain: 0 }) };
+        votes[option] = (votes[option] || 0) + 1;
+        const voters = [...(m.voters || []), currentUser.id];
+        return { ...m, votes, voters };
+      }
+      return m;
+    });
+    setSenateMotions(updated);
+    localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
+  };
+
+  const handleCreateMotionMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canPostMotion) return;
+    if (!draftMotionTitle.trim() || !draftMotionDesc.trim()) return;
+    try {
+      const res = await api.createSenateMotion({ title: draftMotionTitle, description: draftMotionDesc });
+      if (res.motion) {
+        const updated = [res.motion, ...senateMotions];
+        setSenateMotions(updated);
+        localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
+      }
+    } catch (e) {
+      console.error(e);
+      const newM = {
+        id: `motion-${Date.now()}`,
+        title: draftMotionTitle,
+        description: draftMotionDesc,
+        votes: { aye: 0, nay: 0, abstain: 0 },
+        voters: [],
+        status: 'active',
+        createdAt: new Date().toISOString()
+      };
+      const updated = [newM, ...senateMotions];
+      setSenateMotions(updated);
+      localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
+    }
+    setDraftMotionTitle('');
+    setDraftMotionDesc('');
+    setShowDraftMotion(false);
   };
 
   // Discussion reaction
@@ -826,121 +910,188 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
 
                 {/* Senate Motions & Governance Voting */}
                 <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-5">
-                  <div className="border-b pb-3 border-gray-100 flex flex-wrap items-center justify-between gap-2">
+                  <div className="border-b pb-3 border-gray-100 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="font-serif font-bold text-base text-[#0A1F44] uppercase tracking-wide">
-                        Active Legislative Motions
+                        Active Legislative Motions & Proposals
                       </h3>
-                      <p className="text-xs text-gray-500">Cast your legislative vote on active association motions.</p>
+                      <p className="text-xs text-gray-500">Cast your legislative vote or manage motions once elections and voting are concluded.</p>
                     </div>
-                    <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 font-bold px-2 py-1 uppercase">
-                      Chamber Vote Active
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      {canPostMotion && (
+                        <button
+                          onClick={() => setShowDraftMotion(!showDraftMotion)}
+                          className="px-3 py-1.5 bg-[#0D2B4E] hover:bg-[#C9A227] hover:text-[#0A1F44] text-white text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center space-x-1 cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>{showDraftMotion ? 'Cancel Draft' : 'Propose New Motion'}</span>
+                        </button>
+                      )}
+                      <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-300 font-bold px-2.5 py-1 uppercase">
+                        Chamber Session Active
+                      </span>
+                    </div>
                   </div>
 
+                  {/* Draft Motion Form */}
+                  {showDraftMotion && (
+                    <form onSubmit={handleCreateMotionMember} className="bg-[#F5F1E8] p-4 border border-gray-300 space-y-3 text-xs font-sans">
+                      <h4 className="font-serif font-bold text-xs uppercase text-[#0A1F44]">Draft Senate Proposal / Motion</h4>
+                      <div>
+                        <label className="block font-bold text-gray-700 uppercase mb-1">Motion Title</label>
+                        <input
+                          type="text"
+                          required
+                          value={draftMotionTitle}
+                          onChange={(e) => setDraftMotionTitle(e.target.value)}
+                          placeholder="e.g. Motion #84: Authorize Sessional Research Grants"
+                          className="w-full bg-white border border-gray-300 px-3 py-2 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-gray-700 uppercase mb-1">Description & Outline</label>
+                        <textarea
+                          required
+                          rows={3}
+                          value={draftMotionDesc}
+                          onChange={(e) => setDraftMotionDesc(e.target.value)}
+                          placeholder="Provide full details and proposed terms..."
+                          className="w-full bg-white border border-gray-300 px-3 py-2 focus:outline-none"
+                        />
+                      </div>
+                      <div className="flex justify-end space-x-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowDraftMotion(false)}
+                          className="px-3 py-1.5 bg-gray-200 text-gray-700 font-bold uppercase text-[10px] cursor-pointer"
+                        >
+                          Dismiss
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-1.5 bg-[#0D2B4E] hover:bg-[#C9A227] hover:text-[#0A1F44] text-white font-bold uppercase text-[10px] cursor-pointer"
+                        >
+                          Publish to Senate
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
                   <div className="space-y-4">
-                    {senateMotions.map((motion) => {
-                      const hasVoted = motion.voters?.includes(currentUser.id) || motion.voters?.includes(currentUser.email);
-                      const totalVotes = motion.votes.aye + motion.votes.nay + motion.votes.abstain;
-                      const ayePercent = totalVotes > 0 ? Math.round((motion.votes.aye / totalVotes) * 100) : 0;
-                      const nayPercent = totalVotes > 0 ? Math.round((motion.votes.nay / totalVotes) * 100) : 0;
+                    {senateMotions.length > 0 ? (
+                      senateMotions.map((motion) => {
+                        const hasVoted = motion.voters?.includes(currentUser.id) || motion.voters?.includes(currentUser.email);
+                        const totalVotes = (motion.votes?.aye || 0) + (motion.votes?.nay || 0) + (motion.votes?.abstain || 0);
+                        const ayePercent = totalVotes > 0 ? Math.round(((motion.votes?.aye || 0) / totalVotes) * 100) : 0;
+                        const nayPercent = totalVotes > 0 ? Math.round(((motion.votes?.nay || 0) / totalVotes) * 100) : 0;
+                        const isConcluded = motion.status === 'concluded' || motion.status === 'closed';
 
-                      return (
-                        <div key={motion.id} className="border border-gray-200 p-5 bg-[#F5F1E8]/30 space-y-4">
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div>
-                              <h4 className="font-serif font-bold text-sm text-[#0A1F44]">{motion.title}</h4>
-                              <p className="text-xs text-slate-600 mt-1 leading-relaxed">{motion.description}</p>
+                        return (
+                          <div key={motion.id} className="border border-gray-200 p-5 bg-[#F5F1E8]/30 space-y-4">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <div className="flex items-center space-x-2">
+                                  <h4 className="font-serif font-bold text-sm text-[#0A1F44]">{motion.title}</h4>
+                                  <span className={`text-[9px] font-bold uppercase px-2 py-0.5 border ${
+                                    isConcluded
+                                      ? 'bg-slate-200 text-slate-700 border-slate-300'
+                                      : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                  }`}>
+                                    {isConcluded ? '✓ Voting Concluded' : '● Active Voting'}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-600 mt-1 leading-relaxed">{motion.description}</p>
+                              </div>
+                              <span className="text-[10px] font-mono font-bold bg-[#0A1F44] text-[#C9A227] px-2 py-0.5 shrink-0">
+                                {totalVotes} Votes Cast
+                              </span>
                             </div>
-                            <span className="text-[10px] font-mono font-bold bg-[#0A1F44] text-[#C9A227] px-2 py-0.5 shrink-0">
-                              {totalVotes} Votes Cast
-                            </span>
+
+                            {/* Vote Progress bars */}
+                            <div className="space-y-1.5 text-xs font-sans">
+                              <div className="flex justify-between text-[11px] font-bold text-slate-700">
+                                <span>Aye: {motion.votes?.aye || 0} ({ayePercent}%)</span>
+                                <span>Nay: {motion.votes?.nay || 0} ({nayPercent}%)</span>
+                                <span>Abstain: {motion.votes?.abstain || 0}</span>
+                              </div>
+                              <div className="h-2 w-full bg-gray-200 flex overflow-hidden">
+                                <div style={{ width: `${ayePercent}%` }} className="bg-emerald-600 h-full" />
+                                <div style={{ width: `${nayPercent}%` }} className="bg-red-600 h-full" />
+                                <div style={{ width: `${100 - ayePercent - nayPercent}%` }} className="bg-slate-400 h-full" />
+                              </div>
+                            </div>
+
+                            {/* Voting Action buttons */}
+                            {!isConcluded && !hasVoted ? (
+                              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200">
+                                <span className="text-[10px] font-bold uppercase text-slate-500 mr-2">Cast Vote:</span>
+                                <button
+                                  onClick={() => handleVoteMotion(motion.id, 'aye')}
+                                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
+                                >
+                                  ✓ Aye (Approve)
+                                </button>
+                                <button
+                                  onClick={() => handleVoteMotion(motion.id, 'nay')}
+                                  className="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white font-bold text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
+                                >
+                                  ✕ Nay (Reject)
+                                </button>
+                                <button
+                                  onClick={() => handleVoteMotion(motion.id, 'abstain')}
+                                  className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white font-bold text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
+                                >
+                                  ~ Abstain
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="pt-2 border-t border-gray-200 text-[10px] font-bold text-emerald-700 uppercase tracking-wide flex items-center space-x-1">
+                                {isConcluded ? (
+                                  <span className="text-slate-600">Voting for this motion has been concluded by the Senate Council.</span>
+                                ) : (
+                                  <span>✓ Your vote has been officially recorded for this motion.</span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Management & Deletion Bar for Officers / Senators / Admins */}
+                            {showSenateTab && (
+                              <div className="pt-2 border-t border-gray-200 flex flex-wrap items-center justify-between gap-2 text-[10px] font-sans">
+                                <span className="font-bold text-gray-500 uppercase">Chamber Operations:</span>
+                                <div className="flex items-center space-x-2">
+                                  {!isConcluded ? (
+                                    <button
+                                      onClick={() => handleStatusChangeMotion(motion.id, 'concluded')}
+                                      className="px-2.5 py-1 bg-slate-700 hover:bg-slate-800 text-white font-bold uppercase tracking-wider cursor-pointer"
+                                    >
+                                      Close Voting
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleStatusChangeMotion(motion.id, 'active')}
+                                      className="px-2.5 py-1 border border-slate-300 hover:border-[#0A1F44] text-slate-700 font-bold uppercase tracking-wider cursor-pointer"
+                                    >
+                                      Reopen Voting
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleDeleteMotion(motion.id)}
+                                    className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 hover:bg-red-700 hover:text-white font-bold uppercase tracking-wider transition-colors flex items-center space-x-1 cursor-pointer"
+                                  >
+                                    <Trash className="h-3 w-3" />
+                                    <span>Delete Motion</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-
-                          {/* Vote Progress bars */}
-                          <div className="space-y-1.5 text-xs font-sans">
-                            <div className="flex justify-between text-[11px] font-bold text-slate-700">
-                              <span>Aye: {motion.votes.aye} ({ayePercent}%)</span>
-                              <span>Nay: {motion.votes.nay} ({nayPercent}%)</span>
-                              <span>Abstain: {motion.votes.abstain}</span>
-                            </div>
-                            <div className="h-2 w-full bg-gray-200 flex overflow-hidden">
-                              <div style={{ width: `${ayePercent}%` }} className="bg-emerald-600 h-full" />
-                              <div style={{ width: `${nayPercent}%` }} className="bg-red-600 h-full" />
-                              <div style={{ width: `${100 - ayePercent - nayPercent}%` }} className="bg-slate-400 h-full" />
-                            </div>
-                          </div>
-
-                          {/* Voting Action buttons */}
-                          {!hasVoted ? (
-                            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200">
-                              <span className="text-[10px] font-bold uppercase text-slate-500 mr-2">Cast Vote:</span>
-                              <button
-                                onClick={() => {
-                                  const updated = senateMotions.map(m => {
-                                    if (m.id === motion.id) {
-                                      return {
-                                        ...m,
-                                        votes: { ...m.votes, aye: m.votes.aye + 1 },
-                                        voters: [...m.voters, currentUser.id]
-                                      };
-                                    }
-                                    return m;
-                                  });
-                                  setSenateMotions(updated);
-                                  localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
-                                }}
-                                className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
-                              >
-                                ✓ Aye (Approve)
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const updated = senateMotions.map(m => {
-                                    if (m.id === motion.id) {
-                                      return {
-                                        ...m,
-                                        votes: { ...m.votes, nay: m.votes.nay + 1 },
-                                        voters: [...m.voters, currentUser.id]
-                                      };
-                                    }
-                                    return m;
-                                  });
-                                  setSenateMotions(updated);
-                                  localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
-                                }}
-                                className="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white font-bold text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
-                              >
-                                ✕ Nay (Reject)
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const updated = senateMotions.map(m => {
-                                    if (m.id === motion.id) {
-                                      return {
-                                        ...m,
-                                        votes: { ...m.votes, abstain: m.votes.abstain + 1 },
-                                        voters: [...m.voters, currentUser.id]
-                                      };
-                                    }
-                                    return m;
-                                  });
-                                  setSenateMotions(updated);
-                                  localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
-                                }}
-                                className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white font-bold text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
-                              >
-                                ~ Abstain
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="pt-2 border-t border-gray-200 text-[10px] font-bold text-emerald-700 uppercase tracking-wide flex items-center space-x-1">
-                              <span>✓ Your vote has been officially recorded for this motion.</span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    ) : (
+                      <div className="p-8 text-center text-gray-400 uppercase text-xs tracking-wider border border-dashed border-gray-300 bg-[#F5F1E8]/20">
+                        No Senate legislative motions currently active in the chamber. Use the button above to propose a motion.
+                      </div>
+                    )}
                   </div>
                 </div>
 
