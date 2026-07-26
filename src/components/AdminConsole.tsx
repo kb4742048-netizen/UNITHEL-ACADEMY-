@@ -224,9 +224,13 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       if (res.success) {
         setMembers(members.map(m => m.id === id ? { ...m, status: 'active' } : m));
         triggerFeedback('Alumni credential commission verified successfully.');
+        alert('Success: Member commission verified and activated successfully!');
+        await loadAdminData();
+        await onRefreshData();
       }
     } catch (err: any) {
       triggerFeedback(err.message, 'error');
+      alert('Error verifying member: ' + err.message);
     }
   };
 
@@ -236,6 +240,9 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       if (res.success) {
         setMembers(members.map(m => m.id === id ? { ...m, status: 'suspended' } : m));
         triggerFeedback('Member commission suspended.');
+        alert('Member commission suspended.');
+        await loadAdminData();
+        await onRefreshData();
       }
     } catch (err: any) {
       triggerFeedback(err.message, 'error');
@@ -248,6 +255,9 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       if (res.success) {
         setMembers(members.map(m => m.id === id ? { ...m, status: 'active' } : m));
         triggerFeedback('Member commission restored.');
+        alert('Member commission restored.');
+        await loadAdminData();
+        await onRefreshData();
       }
     } catch (err: any) {
       triggerFeedback(err.message, 'error');
@@ -685,11 +695,13 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       if (res.success) {
         if (res.appearance) setAppearance(res.appearance);
         triggerFeedback('Public Executive Leaders posted and published to public site successfully!');
+        alert('Success: Public Executive Leaders published to public site successfully!');
         await loadAdminData();
         await onRefreshData();
       }
     } catch (err: any) {
       triggerFeedback(err.message, 'error');
+      alert('Error publishing leaders: ' + err.message);
     }
   };
 
@@ -697,6 +709,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     e.preventDefault();
     if (!newLeader.name.trim() || !newLeader.position.trim()) {
       triggerFeedback('Leader Name and Official Position Title are required.', 'error');
+      alert('Leader Name and Official Position Title are required.');
       return;
     }
     const defaultImage = newLeader.image.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb';
@@ -712,11 +725,13 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       if (res.success) {
         if (res.appearance) setAppearance(res.appearance);
         triggerFeedback('New leader added and published to public site successfully!');
+        alert('Success: New leader added and published to public site successfully!');
         await loadAdminData();
         await onRefreshData();
       }
     } catch (err: any) {
       triggerFeedback('Added to list, but failed to save to server: ' + err.message, 'error');
+      alert('Added to list, but failed to save to server: ' + err.message);
     }
   };
 
@@ -731,11 +746,13 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       if (res.success) {
         if (res.appearance) setAppearance(res.appearance);
         triggerFeedback('Leader removed and changes published!');
+        alert('Success: Leader removed and changes published!');
         await loadAdminData();
         await onRefreshData();
       }
     } catch (err: any) {
       triggerFeedback('Removed from list, but failed to update server: ' + err.message, 'error');
+      alert('Error updating server: ' + err.message);
     }
   };
 
@@ -1046,7 +1063,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
 
           <div className="flex items-center space-x-2 sm:space-x-4">
             {feedbackMsg && (
-              <div className={`hidden md:flex text-xs px-3 py-1.5 border font-sans font-bold items-center space-x-1.5 ${
+              <div className={`flex text-xs px-3 py-1.5 border font-sans font-bold items-center space-x-1.5 ${
                 feedbackType === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'
               }`}>
                 <span>{feedbackMsg}</span>
