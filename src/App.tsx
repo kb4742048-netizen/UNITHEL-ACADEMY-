@@ -73,6 +73,13 @@ export default function App() {
       }
     }
     loadAppData();
+
+    // Set up background polling for global public app data
+    const interval = setInterval(() => {
+      loadAppData();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const loadAppData = async () => {

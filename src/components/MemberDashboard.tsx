@@ -95,19 +95,16 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
   // Poll for messages and load data
   useEffect(() => {
     loadDashboardData();
-    let interval: any;
-    if (activeTab === 'chat') {
-      interval = setInterval(() => {
-        loadChatMessages();
-      }, 5000); // Poll chat every 5s
-    }
+    const interval = setInterval(() => {
+      loadDashboardData(true);
+    }, 5000); // Poll dashboard data and chat messages every 5s
     return () => {
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
     };
   }, [activeTab, activeChannel]);
 
-  const loadDashboardData = async () => {
-    setLoading(true);
+  const loadDashboardData = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const [discData, balData, duesData, membersData, motionsData] = await Promise.all([
         api.fetchDiscussions(),
@@ -129,7 +126,7 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
     } catch (e) {
       console.error('Error fetching dashboard data:', e);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 

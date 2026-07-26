@@ -150,6 +150,10 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
 
   useEffect(() => {
     loadAdminData();
+    const interval = setInterval(() => {
+      loadAdminData(true);
+    }, 5000); // Background refresh every 5s
+    return () => clearInterval(interval);
   }, [activeTab]);
 
   const triggerFeedback = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -158,8 +162,8 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     setTimeout(() => setFeedbackMsg(''), 5000);
   };
 
-  const loadAdminData = async () => {
-    setLoading(true);
+  const loadAdminData = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const [mems, discs, bals, duesRecords, invs, patronInvs, appData, newsData, dbStatus, motions] = await Promise.all([
         api.fetchMembers(),
@@ -184,36 +188,42 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       setAppearance(appData);
       setNews(newsData);
       setIsPostgres(dbStatus.isPostgres);
-      setLeadersList(appData.leaders || []);
 
-      setAppForm({
-        heroTitle: appData.heroTitle || '',
-        heroSubtitle: appData.heroSubtitle || '',
-        heroBannerUrl: appData.heroBannerUrl || '',
-        imageOverlayOpacity: appData.imageOverlayOpacity ?? 0.88,
-        imageObjectFit: appData.imageObjectFit || 'cover',
-        imageFilterStyle: appData.imageFilterStyle || 'none',
-        heroImageHeight: appData.heroImageHeight ?? 420,
-        computedAspect: appData.computedAspect || '16:9',
-        autoOptimizeImages: appData.autoOptimizeImages ?? true,
-        imageBorderRadius: appData.imageBorderRadius || 'none',
-        announcementsString: appData.announcements?.join('\n') || '',
-        galleryString: appData.gallery?.join('\n') || ''
-      });
+      // Only update local form / leader list states if it is a fresh manual load OR if user is not actively customized editing them on the site settings tab
+      if (!isBackground || activeTab !== 'appearance') {
+        setLeadersList(appData.leaders || []);
 
-      setBrandingForm({
-        logoUrl: appData.logoUrl || '',
-        logoText: appData.logoText || 'UNITHEL ACADEMY',
-        logoSubtext: appData.logoSubtext || 'ALUMNI ASSOCIATION',
-        logoHeight: appData.logoHeight || 32,
-        logoStyle: (appData.logoStyle as any) || 'framed',
-        logoFit: (appData.logoFit as any) || 'contain'
-      });
+        setAppForm({
+          heroTitle: appData.heroTitle || '',
+          heroSubtitle: appData.heroSubtitle || '',
+          heroBannerUrl: appData.heroBannerUrl || '',
+          imageOverlayOpacity: appData.imageOverlayOpacity ?? 0.88,
+          imageObjectFit: appData.imageObjectFit || 'cover',
+          imageFilterStyle: appData.imageFilterStyle || 'none',
+          heroImageHeight: appData.heroImageHeight ?? 420,
+          computedAspect: appData.computedAspect || '16:9',
+          autoOptimizeImages: appData.autoOptimizeImages ?? true,
+          imageBorderRadius: appData.imageBorderRadius || 'none',
+          announcementsString: appData.announcements?.join('\n') || '',
+          galleryString: appData.gallery?.join('\n') || ''
+        });
+
+        setBrandingForm({
+          logoUrl: appData.logoUrl || '',
+          logoText: appData.logoText || 'UNITHEL ACADEMY',
+          logoSubtext: appData.logoSubtext || 'ALUMNI ASSOCIATION',
+          logoHeight: appData.logoHeight || 32,
+          logoStyle: (appData.logoStyle as any) || 'framed',
+          logoFit: (appData.logoFit as any) || 'contain'
+        });
+      }
     } catch (e: any) {
       console.error(e);
-      triggerFeedback('Error retrieving portal data records: ' + e.message, 'error');
+      if (!isBackground) {
+        triggerFeedback('Error retrieving portal data records: ' + e.message, 'error');
+      }
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 

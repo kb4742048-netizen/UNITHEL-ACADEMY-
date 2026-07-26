@@ -268,6 +268,13 @@ async function initializeDatabase() {
         leaders JSONB,
         settings_json JSONB
       );
+      ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS logo_url TEXT;
+      ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS hero_title TEXT;
+      ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS hero_subtitle TEXT;
+      ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS hero_banner_url TEXT;
+      ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS announcements JSONB;
+      ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS gallery JSONB;
+      ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS leaders JSONB;
       ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS settings_json JSONB;
     `);
 

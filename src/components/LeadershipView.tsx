@@ -30,6 +30,12 @@ export default function LeadershipView() {
       }
     }
     loadData();
+
+    const interval = setInterval(() => {
+      loadData();
+    }, 5000); // Dynamic update every 5s
+
+    return () => clearInterval(interval);
   }, []);
 
   // Filter members by search term
