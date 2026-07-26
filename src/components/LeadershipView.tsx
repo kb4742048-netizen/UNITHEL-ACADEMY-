@@ -37,23 +37,26 @@ export default function LeadershipView() {
     );
   };
 
-  // 1. Executive Leadership: Active members with a position that is NOT empty, NOT 'Scholar', and NOT 'Senator'
+  // 1. Executive Leadership: Active members with an executive position or admin role
   const executiveLeaders = members.filter(m => {
     const title = getMemberTitle(m.position);
-    return (
-      m.position &&
-      m.position.trim() !== '' &&
-      title.toLowerCase() !== 'scholar' &&
-      !title.toLowerCase().includes('senator') &&
-      matchesSearch(m)
+    const isExec = (
+      m.role === 'admin' ||
+      (m.position &&
+       m.position.trim() !== '' &&
+       title.toLowerCase() !== 'scholar' &&
+       !title.toLowerCase().includes('senator'))
     );
+    return isExec && matchesSearch(m);
   });
 
-  // Sort Executive Leaders: Chancellor first, then Provost, then Quartermaster, Scribe, then others
-  const getExecutiveRankOrder = (pos?: string): number => {
+  // Sort Executive Leaders: Chancellor/Admin first, then Provost, then Quartermaster, Scribe, then others
+  const getExecutiveRankOrder = (m: Member): number => {
+    if (m.role === 'admin') return 1;
+    const pos = m.position;
     if (!pos) return 99;
     const p = pos.toLowerCase();
-    if (p.includes('chancellor')) return 1;
+    if (p.includes('chancellor') || p.includes('admin') || p.includes('president')) return 1;
     if (p.includes('provost')) return 2;
     if (p.includes('quartermaster')) return 3;
     if (p.includes('scribe')) return 4;
@@ -63,7 +66,7 @@ export default function LeadershipView() {
   };
 
   const sortedExecutiveLeaders = [...executiveLeaders].sort((a, b) => {
-    return getExecutiveRankOrder(a.position) - getExecutiveRankOrder(b.position);
+    return getExecutiveRankOrder(a) - getExecutiveRankOrder(b);
   });
 
   // 2. Council of Senate: Active members whose position is 'Senator' or contains 'Senator'
@@ -142,29 +145,36 @@ export default function LeadershipView() {
                   {sortedExecutiveLeaders.map((leader) => (
                     <div 
                       key={leader.id} 
-                      className="bg-white border border-gray-200 hover:border-[#C9A227]/50 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden"
+                      className="bg-white border-2 border-gray-200 hover:border-[#C9A227] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden"
                     >
-                      <div className="p-6 space-y-4">
-                        <div className="flex items-start space-x-4">
+                      <div className="p-6 space-y-5">
+                        <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-5 text-center sm:text-left">
                           {leader.avatarUrl ? (
                             <img 
                               src={leader.avatarUrl} 
                               alt={leader.name} 
-                              className="h-16 w-16 object-cover border border-[#C9A227]/40 shadow-sm"
+                              className="h-28 w-28 sm:h-32 sm:w-32 object-cover border-2 border-[#C9A227] shadow-md shrink-0 bg-white"
                               referrerPolicy="no-referrer"
                             />
                           ) : (
-                            <div className="h-16 w-16 bg-[#0D2B4E] border border-[#C9A227]/40 flex items-center justify-center text-white font-serif font-black text-lg">
-                              {leader.name.charAt(0)}
+                            <div className="h-28 w-28 sm:h-32 sm:w-32 bg-[#0D2B4E] border-2 border-[#C9A227] flex items-center justify-center text-white font-serif font-black text-3xl shrink-0 shadow-md">
+                              {leader.name ? leader.name.charAt(0).toUpperCase() : 'L'}
                             </div>
                           )}
-                          <div className="space-y-1 min-w-0">
-                            <h3 className="font-serif font-bold text-base text-[#0A1F44] leading-tight truncate">
+                          <div className="space-y-2 min-w-0 flex-1">
+                            <h3 className="font-serif font-bold text-lg text-[#0A1F44] leading-snug">
                               {leader.name}
                             </h3>
-                            <div className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-[#0A1F44] border border-gray-300 text-[9px] font-bold font-mono tracking-wider rounded-none">
+                            <div className="inline-flex items-center px-2.5 py-1 bg-slate-100 text-[#0A1F44] border border-gray-300 text-[10px] font-bold font-mono tracking-wider">
                               {getMilitaryInsignia(leader.position)} {getMemberTitle(leader.position)}
                             </div>
+                            {leader.role === 'admin' && (
+                              <div className="mt-1">
+                                <span className="inline-block text-[9px] bg-[#C9A227]/20 text-[#0A1F44] border border-[#C9A227]/60 px-2 py-0.5 font-bold uppercase tracking-wider">
+                                  ⭐ Executive Administrator
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -224,25 +234,25 @@ export default function LeadershipView() {
                       key={senator.id} 
                       className="bg-white border-2 border-slate-300 hover:border-[#C9A227]/70 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden"
                     >
-                      <div className="p-6 space-y-4">
-                        <div className="flex items-start space-x-4">
+                      <div className="p-6 space-y-5">
+                        <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-5 text-center sm:text-left">
                           {senator.avatarUrl ? (
                             <img 
                               src={senator.avatarUrl} 
                               alt={senator.name} 
-                              className="h-16 w-16 object-cover border border-[#C9A227]/40 shadow-sm"
+                              className="h-28 w-28 sm:h-32 sm:w-32 object-cover border-2 border-[#C9A227] shadow-md shrink-0 bg-white"
                               referrerPolicy="no-referrer"
                             />
                           ) : (
-                            <div className="h-16 w-16 bg-[#0B3C5D] border border-slate-300 flex items-center justify-center text-white font-serif font-black text-lg">
-                              {senator.name.charAt(0)}
+                            <div className="h-28 w-28 sm:h-32 sm:w-32 bg-[#0B3C5D] border-2 border-slate-300 flex items-center justify-center text-white font-serif font-black text-3xl shrink-0 shadow-md">
+                              {senator.name ? senator.name.charAt(0).toUpperCase() : 'S'}
                             </div>
                           )}
-                          <div className="space-y-1 min-w-0">
-                            <h3 className="font-serif font-bold text-base text-[#0A1F44] leading-tight truncate">
+                          <div className="space-y-2 min-w-0 flex-1">
+                            <h3 className="font-serif font-bold text-lg text-[#0A1F44] leading-snug">
                               {senator.name}
                             </h3>
-                            <div className="inline-flex items-center px-2 py-0.5 bg-blue-50 text-blue-900 border border-blue-200 text-[9px] font-bold font-mono tracking-wider rounded-none">
+                            <div className="inline-flex items-center px-2.5 py-1 bg-blue-50 text-blue-900 border border-blue-200 text-[10px] font-bold font-mono tracking-wider">
                               {getMilitaryInsignia(senator.position)} {getMemberTitle(senator.position)}
                             </div>
                           </div>

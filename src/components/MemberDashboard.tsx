@@ -703,43 +703,60 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
                     </div>
 
                     {/* Official Position / Rank Title */}
-                    <div className="space-y-1 bg-[#F5F1E8] p-3 border border-gray-300">
-                      <label className="block font-bold uppercase text-slate-800 text-xs flex items-center justify-between">
-                        <span>Official Position / Leadership Rank</span>
-                        <span className="text-[10px] text-amber-700 font-mono font-bold">
-                          {getMilitaryInsignia(profileForm.position)} {getMemberTitle(profileForm.position)}
-                        </span>
-                      </label>
-                      <p className="text-[10px] text-gray-500 mb-2">
-                        Assign or adjust your leadership title, executive role, or official commission rank.
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <select
-                          value={AVAILABLE_POSITIONS.includes(profileForm.position) ? profileForm.position : 'Custom'}
-                          onChange={(e) => {
-                            if (e.target.value !== 'Custom') {
-                              setProfileForm({ ...profileForm, position: e.target.value });
-                            }
-                          }}
-                          className="w-full bg-white border border-gray-300 px-3 py-2 text-xs font-semibold focus:outline-none focus:border-[#C9A227]"
-                        >
-                          {OFFICIAL_POSITIONS.map((pos) => (
-                            <option key={pos.key} value={pos.key}>{pos.fullLabel}</option>
-                          ))}
-                          <option value="Custom">Custom Rank Title...</option>
-                        </select>
+                    {currentUser.role === 'admin' ? (
+                      <div className="space-y-1 bg-[#F5F1E8] p-3 border border-gray-300">
+                        <label className="block font-bold uppercase text-slate-800 text-xs flex items-center justify-between">
+                          <span>Official Position / Leadership Rank (Admin Override)</span>
+                          <span className="text-[10px] text-amber-700 font-mono font-bold">
+                            {getMilitaryInsignia(profileForm.position)} {getMemberTitle(profileForm.position)}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-gray-500 mb-2">
+                          As Administrator, you can override your official commission rank or leadership title.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <select
+                            value={AVAILABLE_POSITIONS.includes(profileForm.position) ? profileForm.position : 'Custom'}
+                            onChange={(e) => {
+                              if (e.target.value !== 'Custom') {
+                                setProfileForm({ ...profileForm, position: e.target.value });
+                              }
+                            }}
+                            className="w-full bg-white border border-gray-300 px-3 py-2 text-xs font-semibold focus:outline-none focus:border-[#C9A227]"
+                          >
+                            {OFFICIAL_POSITIONS.map((pos) => (
+                              <option key={pos.key} value={pos.key}>{pos.fullLabel}</option>
+                            ))}
+                            <option value="Custom">Custom Rank Title...</option>
+                          </select>
 
-                        {(!AVAILABLE_POSITIONS.includes(profileForm.position) || profileForm.position === 'Custom') && (
-                          <input
-                            type="text"
-                            placeholder="Enter custom position title..."
-                            value={profileForm.position}
-                            onChange={(e) => setProfileForm({ ...profileForm, position: e.target.value })}
-                            className="w-full bg-white border border-gray-300 px-3 py-2 text-xs focus:outline-none focus:border-[#C9A227]"
-                          />
-                        )}
+                          {(!AVAILABLE_POSITIONS.includes(profileForm.position) || profileForm.position === 'Custom') && (
+                            <input
+                              type="text"
+                              placeholder="Enter custom position title..."
+                              value={profileForm.position}
+                              onChange={(e) => setProfileForm({ ...profileForm, position: e.target.value })}
+                              className="w-full bg-white border border-gray-300 px-3 py-2 text-xs focus:outline-none focus:border-[#C9A227]"
+                            />
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="space-y-1 bg-[#F5F1E8] p-3 border border-gray-300">
+                        <label className="block font-bold uppercase text-slate-800 text-xs flex items-center justify-between">
+                          <span>Official Position / Leadership Rank</span>
+                          <span className="text-[10px] text-amber-700 font-mono font-bold">
+                            {getMilitaryInsignia(profileForm.position)} {getMemberTitle(profileForm.position)}
+                          </span>
+                        </label>
+                        <p className="text-[10px] text-gray-500 mb-1">
+                          Assigned official commission rank. Regular members cannot modify their position rank.
+                        </p>
+                        <div className="px-3 py-2 bg-white border border-gray-300 text-xs font-medium text-gray-700">
+                          {getMemberTitle(profileForm.position)} ({profileForm.position || 'Scholar'})
+                        </div>
+                      </div>
+                    )}
 
                     {/* Enhanced Profile Picture Uploader */}
                     <div className="p-4 bg-[#F5F1E8] border border-gray-300 space-y-3">

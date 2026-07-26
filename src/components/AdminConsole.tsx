@@ -59,28 +59,36 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
 
   // Form Management states
   const [adminSelfPosition, setAdminSelfPosition] = useState<string>(currentUser?.position || 'Chancellor');
+  const [adminSelfAvatarUrl, setAdminSelfAvatarUrl] = useState<string>(currentUser?.avatarUrl || '');
 
   useEffect(() => {
     if (currentUser?.position) {
       setAdminSelfPosition(currentUser.position);
     }
-  }, [currentUser?.position]);
+    if (currentUser?.avatarUrl !== undefined) {
+      setAdminSelfAvatarUrl(currentUser.avatarUrl || '');
+    }
+  }, [currentUser?.position, currentUser?.avatarUrl]);
 
-  const handleSaveAdminSelfPosition = async (e: React.FormEvent) => {
+  const handleSaveAdminSelfProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminSelfPosition) return;
     try {
-      const res = await api.updateMember(currentUser.id, { position: adminSelfPosition });
+      const res = await api.updateMember(currentUser.id, { 
+        position: adminSelfPosition,
+        avatarUrl: adminSelfAvatarUrl 
+      });
       if (res.success) {
         currentUser.position = adminSelfPosition;
-        const updatedUser = { ...currentUser, position: adminSelfPosition };
+        currentUser.avatarUrl = adminSelfAvatarUrl;
+        const updatedUser = { ...currentUser, position: adminSelfPosition, avatarUrl: adminSelfAvatarUrl };
         localStorage.setItem('seahawks_user', JSON.stringify(updatedUser));
-        triggerFeedback(`Your administrative position has been updated to "${adminSelfPosition}"!`);
+        localStorage.setItem('scholar_circle_user', JSON.stringify(updatedUser));
+        triggerFeedback(`Your administrator profile photo & position have been updated successfully!`);
         await loadAdminData();
         await onRefreshData();
       }
     } catch (err: any) {
-      triggerFeedback('Failed to update admin position: ' + err.message, 'error');
+      triggerFeedback('Failed to update admin profile: ' + err.message, 'error');
     }
   };
 
@@ -1115,15 +1123,15 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                     </div>
                   </div>
 
-                  {/* Admin Self-Position & Rank Controller */}
-                  <div className="bg-[#0A1F44] border-2 border-[#C9A227] p-5 text-white shadow-md space-y-4">
+                  {/* Admin Self-Position & Profile Photo Controller */}
+                  <div className="bg-[#0A1F44] border-2 border-[#C9A227] p-5 text-white shadow-md space-y-5">
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#C9A227]/30 pb-3">
                       <div className="space-y-1">
                         <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C9A227] font-mono">
                           [ ≡★≡ ] Official Administrator Credentials
                         </span>
                         <h3 className="font-serif text-base font-black uppercase tracking-wide text-white">
-                          Administrator Position & Leadership Rank Controller
+                          Administrator Profile Photo & Leadership Controller
                         </h3>
                       </div>
                       <div className="bg-[#0D2B4E] border border-[#C9A227]/50 px-3 py-1.5 text-center">
@@ -1134,45 +1142,100 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                       </div>
                     </div>
 
-                    <form onSubmit={handleSaveAdminSelfPosition} className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end text-xs font-sans">
-                      <div className="sm:col-span-2 space-y-1">
-                        <label className="block text-[10px] font-bold uppercase text-slate-300">
-                          Select or Enter Your Official Administrative Position Title
-                        </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <select
-                            value={AVAILABLE_POSITIONS.includes(adminSelfPosition) ? adminSelfPosition : 'Custom'}
-                            onChange={(e) => {
-                              if (e.target.value !== 'Custom') {
-                                setAdminSelfPosition(e.target.value);
-                              }
-                            }}
-                            className="w-full bg-[#0D2B4E] border border-gray-600 px-3 py-2 text-white font-semibold focus:outline-none focus:border-[#C9A227]"
-                          >
-                            {OFFICIAL_POSITIONS.map((pos) => (
-                              <option key={pos.key} value={pos.key}>{pos.fullLabel}</option>
-                            ))}
-                            <option value="Custom">Custom Rank Title...</option>
-                          </select>
+                    <form onSubmit={handleSaveAdminSelfProfile} className="space-y-4 text-xs font-sans">
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
+                        {/* Profile Photo Preview & Upload */}
+                        <div className="md:col-span-5 bg-[#0D2B4E] p-4 border border-gray-700 space-y-3">
+                          <label className="block text-[10px] font-bold uppercase text-[#C9A227] tracking-wider">
+                            Administrator Profile Photo
+                          </label>
+                          <div className="flex items-center space-x-4">
+                            <div className="h-16 w-16 rounded-full overflow-hidden border-2 border-[#C9A227] bg-white shrink-0 shadow-sm">
+                              {adminSelfAvatarUrl ? (
+                                <img src={adminSelfAvatarUrl} alt="Admin Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="w-full h-full bg-[#0A1F44] text-[#C9A227] flex items-center justify-center font-serif font-black text-xl">
+                                  {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'A'}
+                                </div>
+                              )}
+                            </div>
 
-                          {(!AVAILABLE_POSITIONS.includes(adminSelfPosition) || adminSelfPosition === 'Custom') && (
-                            <input
-                              type="text"
-                              placeholder="Type custom position..."
-                              value={adminSelfPosition}
-                              onChange={(e) => setAdminSelfPosition(e.target.value)}
-                              className="w-full bg-[#0D2B4E] border border-gray-600 px-3 py-2 text-white focus:outline-none focus:border-[#C9A227]"
-                            />
-                          )}
+                            <div className="space-y-2 flex-1 min-w-0">
+                              <label className="px-3 py-1.5 bg-[#C9A227] hover:bg-white text-[#0A1F44] font-bold text-[10px] uppercase tracking-wider cursor-pointer transition-all inline-flex items-center space-x-1 shadow-sm">
+                                <Upload className="h-3.5 w-3.5" />
+                                <span>Upload Photo File</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      try {
+                                        const compressed = await compressImageFile(file, 800, 800, 0.85);
+                                        setAdminSelfAvatarUrl(compressed);
+                                      } catch (err) {
+                                        triggerFeedback("Could not process photo image.", "error");
+                                      }
+                                    }
+                                  }}
+                                />
+                              </label>
+
+                              <input
+                                type="url"
+                                placeholder="Or enter photo URL..."
+                                value={adminSelfAvatarUrl}
+                                onChange={(e) => setAdminSelfAvatarUrl(e.target.value)}
+                                className="w-full bg-[#0A1F44] border border-gray-600 px-3 py-1 text-[11px] text-white focus:outline-none focus:border-[#C9A227]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Rank Position Selector */}
+                        <div className="md:col-span-7 space-y-3">
+                          <label className="block text-[10px] font-bold uppercase text-slate-300">
+                            Select or Enter Official Administrative Title
+                          </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <select
+                              value={AVAILABLE_POSITIONS.includes(adminSelfPosition) ? adminSelfPosition : 'Custom'}
+                              onChange={(e) => {
+                                if (e.target.value !== 'Custom') {
+                                  setAdminSelfPosition(e.target.value);
+                                }
+                              }}
+                              className="w-full bg-[#0D2B4E] border border-gray-600 px-3 py-2 text-white font-semibold focus:outline-none focus:border-[#C9A227]"
+                            >
+                              {OFFICIAL_POSITIONS.map((pos) => (
+                                <option key={pos.key} value={pos.key}>{pos.fullLabel}</option>
+                              ))}
+                              <option value="Custom">Custom Rank Title...</option>
+                            </select>
+
+                            {(!AVAILABLE_POSITIONS.includes(adminSelfPosition) || adminSelfPosition === 'Custom') && (
+                              <input
+                                type="text"
+                                placeholder="Type custom position..."
+                                value={adminSelfPosition}
+                                onChange={(e) => setAdminSelfPosition(e.target.value)}
+                                className="w-full bg-[#0D2B4E] border border-gray-600 px-3 py-2 text-white focus:outline-none focus:border-[#C9A227]"
+                              />
+                            )}
+                          </div>
+
+                          <div className="pt-2 flex justify-end">
+                            <button
+                              type="submit"
+                              className="px-5 py-2.5 bg-[#C9A227] text-[#0A1F44] font-bold uppercase tracking-wider hover:bg-white transition-colors cursor-pointer text-xs flex items-center space-x-2 shadow-sm"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                              <span>Save Admin Profile & Position</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
-
-                      <button
-                        type="submit"
-                        className="px-4 py-2.5 bg-[#C9A227] text-[#0A1F44] font-bold uppercase tracking-wider hover:bg-white transition-colors cursor-pointer text-xs"
-                      >
-                        Update My Admin Position
-                      </button>
                     </form>
                   </div>
 
