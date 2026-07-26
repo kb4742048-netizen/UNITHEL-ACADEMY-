@@ -939,8 +939,22 @@ async function saveToPostgres(db: DatabaseSchema, targetTable?: string) {
       // 14. Sync Executive Leaders Table
       try {
         await client.query('DELETE FROM executive_leaders');
+        const insertedKeys = new Set<string>();
         for (const leader of (db.appearance?.leaders || [])) {
           if (!leader || !leader.name || !leader.position) continue;
+          const memberId = leader.memberId || null;
+          const pos = leader.position.trim().toLowerCase();
+          const term = leader.currentTerm || '2026-2027';
+          const uKey = memberId ? `${memberId}:${pos}:${term}` : null;
+          
+          if (uKey && insertedKeys.has(uKey)) {
+            console.log(`[PostgreSQL] Skipping duplicate leader insertion for unique constraint: ${uKey}`);
+            continue;
+          }
+          if (uKey) {
+            insertedKeys.add(uKey);
+          }
+
           const leaderId = leader.id || (leader.memberId ? `${leader.memberId}-${leader.position.toLowerCase().replace(/\s+/g, '-')}` : `manual-${leader.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`);
           await client.query(
             `INSERT INTO executive_leaders (id, member_id, name, position, image, biography, social_links, current_term, is_auto_elected, created_at)
@@ -957,13 +971,13 @@ async function saveToPostgres(db: DatabaseSchema, targetTable?: string) {
                created_at = EXCLUDED.created_at`,
             [
               leaderId,
-              leader.memberId || null,
+              memberId,
               leader.name,
               leader.position,
               leader.image || '',
               leader.biography || '',
               leader.socialLinks ? JSON.stringify(leader.socialLinks) : null,
-              leader.currentTerm || '2026-2027',
+              term,
               !!leader.isAutoElected,
               leader.createdAt || new Date().toISOString()
             ]
@@ -971,6 +985,7 @@ async function saveToPostgres(db: DatabaseSchema, targetTable?: string) {
         }
       } catch (e) {
         console.error('[PostgreSQL] Error syncing executive_leaders table', e);
+        throw e;
       }
     }
     
@@ -1310,10 +1325,12 @@ function loadDb(): DatabaseSchema {
 function saveDb(data: DatabaseSchema, targetTable?: string) {
   cleanupDuplicateLeaders(data);
   cachedDb = data;
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error('Error writing DB_FILE fallback', e);
+  if (!isPostgres) {
+    try {
+      fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+    } catch (e) {
+      console.error('Error writing DB_FILE fallback', e);
+    }
   }
   if (isPostgres) {
     saveToPostgres(data, targetTable).catch(err => console.error('[PostgreSQL] Async sync error:', err));
