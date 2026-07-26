@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Member } from '../types';
 import * as api from '../api';
-import { getMilitaryInsignia, getMemberTitle } from '../utils/ranks';
+import { getMilitaryInsignia, getMemberTitle, OFFICIAL_POSITIONS } from '../utils/ranks';
 import { Compass, Briefcase, Calendar, Award, GraduationCap, Search, ShieldAlert, Star } from 'lucide-react';
 
 export default function LeadershipView() {
@@ -37,26 +37,46 @@ export default function LeadershipView() {
     );
   };
 
-  // 1. Executive Leadership: Active members with an executive position or admin role
+  // 1. Executive Leadership: Active members with a recognized executive/leadership position (excluding Scholar, Member, empty, or Senator)
   const executiveLeaders = members.filter(m => {
-    const title = getMemberTitle(m.position);
-    const isExec = (
-      m.role === 'admin' ||
-      (m.position &&
-       m.position.trim() !== '' &&
-       title.toLowerCase() !== 'scholar' &&
-       !title.toLowerCase().includes('senator'))
+    const pos = (m.position || '').trim().toLowerCase();
+    const title = getMemberTitle(m.position).toLowerCase();
+    
+    // Explicitly exclude scholars, members, research officers, empty positions, and senators
+    if (
+      !pos ||
+      pos === 'scholar' ||
+      pos === 'none' ||
+      pos === 'no position' ||
+      title.includes('scholar') ||
+      title.includes('research officer') ||
+      title.includes('general member') ||
+      title.includes('member') ||
+      pos.includes('senator')
+    ) {
+      return false;
+    }
+
+    // Must be an official leadership position or a valid custom leadership title
+    const isOfficialLeader = OFFICIAL_POSITIONS.some(op => 
+      op.key.toLowerCase() !== 'scholar' && 
+      (pos === op.key.toLowerCase() || title.includes(op.key.toLowerCase()))
     );
-    return isExec && matchesSearch(m);
+
+    const isCustomLeadership = pos !== '' && 
+      !pos.includes('scholar') && 
+      !pos.includes('member') && 
+      !pos.includes('research');
+
+    return (isOfficialLeader || isCustomLeadership) && matchesSearch(m);
   });
 
   // Sort Executive Leaders: Chancellor/Admin first, then Provost, then Quartermaster, Scribe, then others
   const getExecutiveRankOrder = (m: Member): number => {
-    if (m.role === 'admin') return 1;
     const pos = m.position;
     if (!pos) return 99;
     const p = pos.toLowerCase();
-    if (p.includes('chancellor') || p.includes('admin') || p.includes('president')) return 1;
+    if (p.includes('chancellor') || p.includes('admin') || p.includes('president') || m.role === 'admin') return 1;
     if (p.includes('provost')) return 2;
     if (p.includes('quartermaster')) return 3;
     if (p.includes('scribe')) return 4;
@@ -69,10 +89,14 @@ export default function LeadershipView() {
     return getExecutiveRankOrder(a) - getExecutiveRankOrder(b);
   });
 
-  // 2. Council of Senate: Active members whose position is 'Senator' or contains 'Senator'
+  // 2. Council of Senate: Active members whose position is 'Senator' or contains 'Senator' (excluding general scholars)
   const senators = members.filter(m => {
-    const title = getMemberTitle(m.position);
-    return title.toLowerCase().includes('senator') && matchesSearch(m);
+    const pos = (m.position || '').trim().toLowerCase();
+    const title = getMemberTitle(m.position).toLowerCase();
+    if (pos === 'scholar' || title.includes('scholar') || (!pos && !title.includes('senator'))) {
+      return false;
+    }
+    return (title.toLowerCase().includes('senator') || pos.includes('senator')) && matchesSearch(m);
   });
 
   return (
