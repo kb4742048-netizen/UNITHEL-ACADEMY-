@@ -71,7 +71,7 @@ export default function Header({ currentView, setView, currentUser, onLogout, op
                 {appearance?.logoText || 'UNITHEL ACADEMY'}
               </span>
               <span className="block text-[8px] sm:text-[9px] uppercase font-sans tracking-[0.2em] text-amber-400 mt-1 font-bold">
-                {appearance?.logoSubtext || 'ALUMNI ORGANIZATION'}
+                {appearance?.logoSubtext || 'ALUMNI ASSOCIATION'}
               </span>
             </div>
           </div>

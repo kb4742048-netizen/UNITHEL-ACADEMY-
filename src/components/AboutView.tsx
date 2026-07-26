@@ -52,7 +52,7 @@ export default function AboutView() {
       {/* Title Banner */}
       <div className="text-center bg-[#0A1F44] border-2 border-[#C9A227] text-white py-8 px-4 shadow-sm relative overflow-hidden">
         <span className="text-[10px] uppercase tracking-[0.25em] text-[#C9A227] font-sans font-black block mb-1">
-          UNITHEL ACADEMY ALUMNI ORGANIZATION
+          UNITHEL ACADEMY ALUMNI ASSOCIATION
         </span>
         <h1 className="font-serif text-2xl sm:text-3xl font-black uppercase tracking-wide text-amber-100">
           About Unithel Academy
@@ -67,15 +67,15 @@ export default function AboutView() {
         <div className="flex items-center space-x-2">
           <Users className="h-5 w-5 text-[#C9A227]" />
           <h2 className="font-serif font-bold text-sm text-[#0A1F44] uppercase tracking-wider">
-            About Unithel Academy Alumni Organization
+            About Unithel Academy Alumni Association
           </h2>
         </div>
         <div className="h-0.5 bg-[#C9A227]/30 w-full" />
         <p className="text-xs text-gray-700 leading-relaxed font-sans text-justify">
-          The Unithel Academy Alumni Organization is an official, prestigious community of graduates, scholars, and academic patrons dedicated to maintaining lifelong connections with one another and with Unithel Academy (Opolo Yenagoa, Bayelsa State). The organization serves as a premier platform for professional networking, mentorship, research grants, and societal service.
+          The Unithel Academy Alumni Association is an official, prestigious community of graduates, scholars, and academic patrons dedicated to maintaining lifelong connections with one another and with Unithel Academy (Opolo Yenagoa, Bayelsa State). The association serves as a premier platform for professional networking, mentorship, research grants, and societal service.
         </p>
         <p className="text-xs text-gray-700 leading-relaxed font-sans text-justify">
-          Through strategic programs, regional chapter galas, and digital collaboration, the organization strengthens the bond between alumni and Unithel Academy, ensuring that every graduate remains empowered throughout their professional journey.
+          Through strategic programs, regional chapter galas, and digital collaboration, the association strengthens the bond between alumni and Unithel Academy, ensuring that every graduate remains empowered throughout their professional journey.
         </p>
       </section>
 
@@ -123,7 +123,7 @@ export default function AboutView() {
         </div>
         <div className="h-0.5 bg-[#C9A227]/30 w-full" />
         <p className="text-xs text-gray-700 leading-relaxed font-sans text-justify">
-          Unithel Academy was established with a clear mandate: to cultivate exceptional intellectual discipline, character, and leadership. Recognizing that an academy’s true legacy rests in the achievements of its alumni, the Alumni Organization was instituted to keep the flame of Unithel academic excellence burning brightly.
+          Unithel Academy was established with a clear mandate: to cultivate exceptional intellectual discipline, character, and leadership. Recognizing that an academy’s true legacy rests in the achievements of its alumni, the Alumni Association was instituted to keep the flame of Unithel academic excellence burning brightly.
         </p>
         <p className="text-xs text-gray-700 leading-relaxed font-sans text-justify">
           From its origins in Opolo Yenagoa to its expanding global footprint, Unithel Academy continues to produce distinguished leaders in technology, government, healthcare, law, and business.
@@ -162,7 +162,7 @@ export default function AboutView() {
             Our Core Values
           </h2>
           <p className="text-[10px] text-gray-500 font-sans mt-0.5">
-            The foundational principles guiding Unithel Academy Alumni Organization.
+            The foundational principles guiding Unithel Academy Alumni Association.
           </p>
         </div>
 

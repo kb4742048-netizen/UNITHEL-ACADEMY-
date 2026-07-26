@@ -47,7 +47,7 @@ export default function Footer({ setView, appearance }: FooterProps) {
                   {appearance?.logoText || 'UNITHEL ACADEMY'}
                 </span>
                 <span className="block text-[8px] uppercase font-sans tracking-[0.15em] text-amber-400 mt-1 font-semibold">
-                  {appearance?.logoSubtext || 'ALUMNI ORGANIZATION'}
+                  {appearance?.logoSubtext || 'ALUMNI ASSOCIATION'}
                 </span>
               </div>
             </div>
@@ -146,7 +146,7 @@ export default function Footer({ setView, appearance }: FooterProps) {
 
         {/* Lower Footer */}
         <div className="border-t border-gray-700/60 pt-4 flex flex-col sm:flex-row justify-between items-center text-[10px] text-gray-400 gap-2">
-          <p>© {new Date().getFullYear()} UNITHEL ACADEMY ALUMNI ORGANIZATION. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} UNITHEL ACADEMY ALUMNI ASSOCIATION. All rights reserved.</p>
           <div className="flex space-x-3">
             <a href="#" className="hover:text-amber-200 transition-colors">Privacy Policy</a>
             <span>•</span>

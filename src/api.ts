@@ -3,16 +3,34 @@ import { Member, Blog, Event, Discussion, ChatMessage, Ballot, SenateMotion, Due
 const API_BASE = '';
 
 export async function loginUser(email: string, password: string): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
-  });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Login failed.');
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
+    let data;
+    try {
+      data = await res.json();
+    } catch (e) {
+      throw new Error('Server returned invalid response. Please try again.');
+    }
+
+    if (!res.ok) {
+      throw new Error(data.error || 'Login failed.');
+    }
+    return data;
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('Login request timed out. Please check your connection and try again.');
+    }
+    throw new Error(err.message || 'Network connection error or failed to reach server. Please check your connection.');
   }
-  return res.json();
 }
 
 export async function registerUser(data: any): Promise<any> {

@@ -84,10 +84,10 @@ export default function HomeView({ setView, blogs, events, appearance, openAuthM
           </div>
 
           <span className="inline-block text-[10px] sm:text-[11px] font-black font-sans tracking-[0.25em] uppercase bg-[#C9A227]/25 text-[#C9A227] px-4 py-1.5 border border-[#C9A227]/60 shadow-md">
-            {appearance.logoText ? `${appearance.logoText} ${appearance.logoSubtext || ''}` : 'UNITHEL ACADEMY ALUMNI ORGANIZATION'}
+            {appearance.logoText ? `${appearance.logoText} ${appearance.logoSubtext || ''}` : 'UNITHEL ACADEMY ALUMNI ASSOCIATION'}
           </span>
           <h1 className="font-serif text-xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight uppercase text-amber-100">
-            {appearance.heroTitle || 'UNITHEL ACADEMY ALUMNI ORGANIZATION'}
+            {appearance.heroTitle || 'UNITHEL ACADEMY ALUMNI ASSOCIATION'}
           </h1>
           <p className="max-w-lg mx-auto text-xs sm:text-sm text-gray-200 leading-relaxed font-sans">
             {appearance.heroSubtitle || 'Connecting generations of Unithel Academy graduates, distinguished scholars, and academic patrons to foster lifelong excellence and mutual growth.'}
@@ -167,7 +167,7 @@ export default function HomeView({ setView, blogs, events, appearance, openAuthM
             A Lifelong Network of Academic & Career Excellence
           </h2>
           <p className="text-xs text-gray-700 leading-relaxed text-justify">
-            The Unithel Academy Alumni Organization is a community of graduates dedicated to maintaining lifelong connections with one another and with Unithel Academy (Opolo Yenagoa, Bayelsa State). The organization serves as a premier platform for networking, career mentorship, research grant sponsorship, and social service across generations.
+            The Unithel Academy Alumni Association is a community of graduates dedicated to maintaining lifelong connections with one another and with Unithel Academy (Opolo Yenagoa, Bayelsa State). The association serves as a premier platform for networking, career mentorship, research grant sponsorship, and social service across generations.
           </p>
           <div className="pt-1">
             <button
@@ -197,7 +197,7 @@ export default function HomeView({ setView, blogs, events, appearance, openAuthM
             <div>
               <h4 className="font-bold uppercase text-[#C9A227] tracking-wider">Our Vision</h4>
               <p className="text-gray-600 mt-0.5 leading-relaxed">
-                To stand as an elite, globally respected alumni organization, cultivating visionary leadership and lifelong career opportunities.
+                To stand as an elite, globally respected alumni association, cultivating visionary leadership and lifelong career opportunities.
               </p>
             </div>
           </div>
