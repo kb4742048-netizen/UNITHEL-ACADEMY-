@@ -204,7 +204,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       setBrandingForm({
         logoUrl: appData.logoUrl || '',
         logoText: appData.logoText || 'UNITHEL ACADEMY',
-        logoSubtext: appData.logoSubtext || 'ALUMNI ORGANIZATION',
+        logoSubtext: appData.logoSubtext || 'ALUMNI ASSOCIATION',
         logoHeight: appData.logoHeight || 32,
         logoStyle: (appData.logoStyle as any) || 'framed',
         logoFit: (appData.logoFit as any) || 'contain'
@@ -3412,7 +3412,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                                 {brandingForm.logoText || 'UNITHEL ACADEMY'}
                               </span>
                               <span className="block text-[8px] uppercase font-sans tracking-[0.2em] text-amber-400 mt-1 font-bold">
-                                {brandingForm.logoSubtext || 'ALUMNI ORGANIZATION'}
+                                {brandingForm.logoSubtext || 'ALUMNI ASSOCIATION'}
                               </span>
                             </div>
                           </div>
