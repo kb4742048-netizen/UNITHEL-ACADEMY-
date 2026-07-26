@@ -266,9 +266,18 @@ export async function fetchSenateMotions(): Promise<SenateMotion[]> {
   return res.json();
 }
 
-export async function createSenateMotion(data: { title: string; description: string }): Promise<any> {
+export async function createSenateMotion(data: { title: string; description: string; authorId?: string; authorName?: string }): Promise<any> {
   const res = await fetch(`${API_BASE}/api/senate-motions`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  return res.json();
+}
+
+export async function updateSenateMotion(id: string, data: { title: string; description: string }): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/senate-motions/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
@@ -289,6 +298,29 @@ export async function updateSenateMotionStatus(id: string, status: 'active' | 'c
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status })
+  });
+  return res.json();
+}
+
+export async function requestDeleteSenateMotion(id: string, requesterName?: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/senate-motions/${id}/request-deletion`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requesterName })
+  });
+  return res.json();
+}
+
+export async function approveDeleteSenateMotion(id: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/senate-motions/${id}/approve-deletion`, {
+    method: 'POST'
+  });
+  return res.json();
+}
+
+export async function rejectDeleteSenateMotion(id: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/senate-motions/${id}/reject-deletion`, {
+    method: 'POST'
   });
   return res.json();
 }

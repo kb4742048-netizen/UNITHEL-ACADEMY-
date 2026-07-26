@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Compass, User, MessageSquare, Award, Calendar, BookOpen, CreditCard, Bell, 
   Send, Plus, MessageCircle, Heart, Lock, Pin, Check, Download, AlertCircle, FileText, CheckCircle, X,
-  Upload, Trash, Camera
+  Upload, Trash, Camera, AlertTriangle
 } from 'lucide-react';
 import { Member, Blog, Event, Discussion, ChatMessage, Ballot, SenateMotion, DuesRecord } from '../types';
 import * as api from '../api';
@@ -18,7 +18,7 @@ interface MemberDashboardProps {
 }
 
 export default function MemberDashboard({ currentUser, setCurrentUser, blogs, events, onRefreshData }: MemberDashboardProps) {
-  const isSenator = currentUser?.position === 'Senator';
+  const isSenator = currentUser?.position === 'Senator' || currentUser?.position?.includes('Senator');
   const isChancellor = currentUser?.position === 'Chancellor';
   const isProvost = currentUser?.position === 'Provost';
   const isAdmin = currentUser?.role === 'admin';
@@ -188,15 +188,39 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
 
   // Motion Management Handlers for Senate Assembly
   const handleDeleteMotion = async (id: string) => {
-    if (window.confirm('Delete this Senate motion/proposal permanently? Voting records and results for this motion will be removed.')) {
-      try {
-        await api.deleteSenateMotion(id);
-      } catch (e) {
-        console.error(e);
+    if (isAdmin) {
+      if (window.confirm('Delete this Senate motion/proposal permanently? Voting records and results for this motion will be removed.')) {
+        try {
+          await api.deleteSenateMotion(id);
+        } catch (e) {
+          console.error(e);
+        }
+        const updated = senateMotions.filter(m => m.id !== id);
+        setSenateMotions(updated);
+        localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
       }
-      const updated = senateMotions.filter(m => m.id !== id);
-      setSenateMotions(updated);
-      localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
+    } else {
+      if (window.confirm('Request proposal deletion? An administrator must approve deletion before it is permanently removed.')) {
+        try {
+          await api.requestDeleteSenateMotion(id, currentUser.name || 'Senator');
+        } catch (e) {
+          console.error(e);
+        }
+        const updated = senateMotions.map(m => {
+          if (m.id === id) {
+            return {
+              ...m,
+              deletionRequested: true,
+              deletionRequestedBy: currentUser.name || 'Senator',
+              deletionRequestedAt: new Date().toISOString()
+            };
+          }
+          return m;
+        });
+        setSenateMotions(updated);
+        localStorage.setItem('senate_motions_voted', JSON.stringify(updated));
+        alert('Deletion request submitted to administrators for review. The proposal will remain visible until approved or rejected.');
+      }
     }
   };
 
@@ -235,7 +259,12 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
     if (!canPostMotion) return;
     if (!draftMotionTitle.trim() || !draftMotionDesc.trim()) return;
     try {
-      const res = await api.createSenateMotion({ title: draftMotionTitle, description: draftMotionDesc });
+      const res = await api.createSenateMotion({
+        title: draftMotionTitle,
+        description: draftMotionDesc,
+        authorId: currentUser.id,
+        authorName: currentUser.name || 'Senator'
+      });
       if (res.motion) {
         const updated = [res.motion, ...senateMotions];
         setSenateMotions(updated);
@@ -247,6 +276,8 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
         id: `motion-${Date.now()}`,
         title: draftMotionTitle,
         description: draftMotionDesc,
+        authorId: currentUser.id,
+        authorName: currentUser.name || 'Senator',
         votes: { aye: 0, nay: 0, abstain: 0 },
         voters: [],
         status: 'active',
@@ -988,6 +1019,15 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
 
                         return (
                           <div key={motion.id} className="border border-gray-200 p-5 bg-[#F5F1E8]/30 space-y-4">
+                            {motion.deletionRequested && (
+                              <div className="bg-amber-50 border border-amber-300 p-2.5 text-amber-900 text-xs font-sans flex items-center space-x-2">
+                                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                                <span>
+                                  <strong>Deletion Request Pending:</strong> Requested by {motion.deletionRequestedBy || 'Senator'}. Awaiting Administrator approval in the Admin Panel.
+                                </span>
+                              </div>
+                            )}
+
                             <div className="flex flex-wrap items-start justify-between gap-2">
                               <div>
                                 <div className="flex items-center space-x-2">
@@ -1001,6 +1041,11 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
                                   </span>
                                 </div>
                                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">{motion.description}</p>
+                                {motion.authorName && (
+                                  <span className="text-[10px] text-gray-400 block mt-1">
+                                    Proposed by: {motion.authorName}
+                                  </span>
+                                )}
                               </div>
                               <span className="text-[10px] font-mono font-bold bg-[#0A1F44] text-[#C9A227] px-2 py-0.5 shrink-0">
                                 {totalVotes} Votes Cast
@@ -1076,10 +1121,20 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
                                   )}
                                   <button
                                     onClick={() => handleDeleteMotion(motion.id)}
-                                    className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 hover:bg-red-700 hover:text-white font-bold uppercase tracking-wider transition-colors flex items-center space-x-1 cursor-pointer"
+                                    className={`px-2.5 py-1 font-bold uppercase tracking-wider transition-colors flex items-center space-x-1 cursor-pointer ${
+                                      motion.deletionRequested && !isAdmin
+                                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                        : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-700 hover:text-white'
+                                    }`}
                                   >
                                     <Trash className="h-3 w-3" />
-                                    <span>Delete Motion</span>
+                                    <span>
+                                      {isAdmin 
+                                        ? 'Delete Motion' 
+                                        : motion.deletionRequested 
+                                        ? 'Deletion Pending Approval' 
+                                        : 'Delete Proposal'}
+                                    </span>
                                   </button>
                                 </div>
                               </div>

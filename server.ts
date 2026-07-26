@@ -1612,7 +1612,7 @@ app.get('/api/senate-motions', (req, res) => {
 });
 
 app.post('/api/senate-motions', (req, res) => {
-  const { title, description } = req.body;
+  const { title, description, authorId, authorName } = req.body;
   if (!title || !description) {
     return res.status(400).json({ error: 'Title and description are required.' });
   }
@@ -1622,6 +1622,8 @@ app.post('/api/senate-motions', (req, res) => {
     id: `motion-${Date.now()}`,
     title,
     description,
+    authorId: authorId || null,
+    authorName: authorName || 'Senator',
     votes: { aye: 0, nay: 0, abstain: 0 },
     voters: [],
     status: 'active',
@@ -1630,6 +1632,65 @@ app.post('/api/senate-motions', (req, res) => {
   db.senateMotions.unshift(newMotion);
   saveDb(db);
   res.json({ success: true, motion: newMotion });
+});
+
+app.put('/api/senate-motions/:id', (req, res) => {
+  const { id } = req.params;
+  const { title, description } = req.body;
+  const db = loadDb();
+  if (!db.senateMotions) db.senateMotions = [];
+  const motion = db.senateMotions.find((m: any) => m.id === id);
+  if (!motion) {
+    return res.status(404).json({ error: 'Senate motion not found.' });
+  }
+  if (title) motion.title = title;
+  if (description) motion.description = description;
+  saveDb(db);
+  res.json({ success: true, motion });
+});
+
+app.post('/api/senate-motions/:id/request-deletion', (req, res) => {
+  const { id } = req.params;
+  const { requesterName } = req.body;
+  const db = loadDb();
+  if (!db.senateMotions) db.senateMotions = [];
+  const motion = db.senateMotions.find((m: any) => m.id === id);
+  if (!motion) {
+    return res.status(404).json({ error: 'Senate motion not found.' });
+  }
+  motion.deletionRequested = true;
+  motion.deletionRequestedBy = requesterName || 'Senator';
+  motion.deletionRequestedAt = new Date().toISOString();
+  saveDb(db);
+  res.json({ success: true, motion });
+});
+
+app.post('/api/senate-motions/:id/approve-deletion', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  if (!db.senateMotions) db.senateMotions = [];
+  const initialLen = db.senateMotions.length;
+  db.senateMotions = db.senateMotions.filter((m: any) => m.id !== id);
+  if (db.senateMotions.length < initialLen) {
+    saveDb(db);
+    return res.json({ success: true, message: 'Deletion approved and motion permanently removed.' });
+  }
+  res.status(404).json({ error: 'Senate motion not found.' });
+});
+
+app.post('/api/senate-motions/:id/reject-deletion', (req, res) => {
+  const { id } = req.params;
+  const db = loadDb();
+  if (!db.senateMotions) db.senateMotions = [];
+  const motion = db.senateMotions.find((m: any) => m.id === id);
+  if (!motion) {
+    return res.status(404).json({ error: 'Senate motion not found.' });
+  }
+  motion.deletionRequested = false;
+  motion.deletionRequestedBy = null;
+  motion.deletionRequestedAt = null;
+  saveDb(db);
+  res.json({ success: true, motion });
 });
 
 app.post('/api/senate-motions/:id/vote', (req, res) => {

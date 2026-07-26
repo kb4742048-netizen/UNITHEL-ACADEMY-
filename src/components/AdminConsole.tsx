@@ -4,7 +4,7 @@ import {
   Lock, Pin, Calendar, Save, Megaphone, Share2, Compass, TrendingUp, 
   DollarSign, Activity, Edit3, Shield, Menu, ChevronLeft, ChevronRight, 
   RefreshCw, Database, Info, Upload, Key, ListFilter, X, LogOut, Globe, Camera,
-  Crown, Copy, Link as LinkIcon
+  Crown, Copy, Link as LinkIcon, AlertTriangle
 } from 'lucide-react';
 import { Member, Blog, Event, Discussion, Ballot, SenateMotion, DuesRecord, LordPatronInvite, PatronInvite, WebsiteAppearance, News, LeadershipMember } from '../types';
 import * as api from '../api';
@@ -34,6 +34,9 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   const [senateMotions, setSenateMotions] = useState<SenateMotion[]>([]);
   const [newMotionTitle, setNewMotionTitle] = useState('');
   const [newMotionDesc, setNewMotionDesc] = useState('');
+  const [editingMotionId, setEditingMotionId] = useState<string | null>(null);
+  const [editMotionTitle, setEditMotionTitle] = useState('');
+  const [editMotionDesc, setEditMotionDesc] = useState('');
   const [dues, setDues] = useState<DuesRecord[]>([]);
   const [invites, setInvites] = useState<LordPatronInvite[]>([]);
   const [patronInvites, setPatronInvites] = useState<PatronInvite[]>([]);
@@ -439,7 +442,12 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     e.preventDefault();
     if (!newMotionTitle.trim() || !newMotionDesc.trim()) return;
     try {
-      await api.createSenateMotion({ title: newMotionTitle, description: newMotionDesc });
+      await api.createSenateMotion({
+        title: newMotionTitle,
+        description: newMotionDesc,
+        authorId: currentUser.id,
+        authorName: currentUser.name || 'Administrator'
+      });
       triggerFeedback('New Senate motion published successfully!');
       setNewMotionTitle('');
       setNewMotionDesc('');
@@ -449,8 +457,49 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     }
   };
 
+  const handleStartEditMotion = (motion: SenateMotion) => {
+    setEditingMotionId(motion.id);
+    setEditMotionTitle(motion.title);
+    setEditMotionDesc(motion.description);
+  };
+
+  const handleSaveEditMotion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMotionId || !editMotionTitle.trim() || !editMotionDesc.trim()) return;
+    try {
+      await api.updateSenateMotion(editingMotionId, { title: editMotionTitle, description: editMotionDesc });
+      triggerFeedback('Senate proposal updated successfully.');
+      setEditingMotionId(null);
+      loadAdminData();
+    } catch (err: any) {
+      triggerFeedback(err.message, 'error');
+    }
+  };
+
+  const handleApproveDeleteMotion = async (id: string) => {
+    if (confirm('Approve deletion request and permanently delete this Senate proposal?')) {
+      try {
+        await api.approveDeleteSenateMotion(id);
+        triggerFeedback('Proposal deletion request approved and permanently removed.');
+        loadAdminData();
+      } catch (err: any) {
+        triggerFeedback(err.message, 'error');
+      }
+    }
+  };
+
+  const handleRejectDeleteMotion = async (id: string) => {
+    try {
+      await api.rejectDeleteSenateMotion(id);
+      triggerFeedback('Proposal deletion request rejected.');
+      loadAdminData();
+    } catch (err: any) {
+      triggerFeedback(err.message, 'error');
+    }
+  };
+
   const handleDeleteSenateMotion = async (id: string) => {
-    if (confirm('Delete this Senate motion/proposal permanently? Voting records and results for this motion will be removed.')) {
+    if (confirm('Delete this Senate motion/proposal permanently? Voting records and results for this motion will be removed immediately.')) {
       try {
         await api.deleteSenateMotion(id);
         triggerFeedback('Senate motion/proposal deleted successfully.');
@@ -1965,6 +2014,45 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                       </button>
                     </form>
 
+                    {/* Pending Deletion Requests Alert Box */}
+                    {senateMotions.some(m => m.deletionRequested) && (
+                      <div className="bg-amber-50 border-l-4 border-amber-500 p-4 space-y-3 font-sans">
+                        <div className="flex items-center space-x-2 text-amber-900 font-serif font-bold text-xs uppercase">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          <span>Pending Proposal Deletion Requests ({senateMotions.filter(m => m.deletionRequested).length})</span>
+                        </div>
+                        <p className="text-xs text-amber-800">
+                          The following Senate proposals have deletion requests submitted by Senators awaiting administrator review and approval.
+                        </p>
+                        <div className="space-y-2">
+                          {senateMotions.filter(m => m.deletionRequested).map(m => (
+                            <div key={m.id} className="bg-white p-3 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                              <div>
+                                <span className="font-bold text-[#0A1F44]">{m.title}</span>
+                                <span className="text-gray-500 text-[11px] block sm:inline sm:ml-2">
+                                  Requested by: <strong className="text-slate-700">{m.deletionRequestedBy || 'Senator'}</strong>
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-2 shrink-0">
+                                <button
+                                  onClick={() => handleApproveDeleteMotion(m.id)}
+                                  className="px-3 py-1 bg-red-700 hover:bg-red-800 text-white font-bold text-[10px] uppercase cursor-pointer"
+                                >
+                                  Approve Deletion
+                                </button>
+                                <button
+                                  onClick={() => handleRejectDeleteMotion(m.id)}
+                                  className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold text-[10px] uppercase cursor-pointer"
+                                >
+                                  Reject Request
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Motions List */}
                     <div className="space-y-4">
                       <h3 className="font-serif font-bold text-xs uppercase text-[#0A1F44] tracking-wider">
@@ -1976,67 +2064,148 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                             const totalVotes = (motion.votes?.aye || 0) + (motion.votes?.nay || 0) + (motion.votes?.abstain || 0);
                             const ayePercent = totalVotes > 0 ? Math.round(((motion.votes?.aye || 0) / totalVotes) * 100) : 0;
                             const nayPercent = totalVotes > 0 ? Math.round(((motion.votes?.nay || 0) / totalVotes) * 100) : 0;
+                            const isEditing = editingMotionId === motion.id;
 
                             return (
                               <div key={motion.id} className="p-5 bg-white space-y-3 hover:bg-slate-50 transition-colors">
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                                  <div>
-                                    <div className="flex items-center space-x-2">
-                                      <span className="font-serif font-bold text-sm text-[#0A1F44]">{motion.title}</span>
-                                      <span className={`text-[9px] font-bold uppercase px-2 py-0.5 border ${
-                                        motion.status === 'active' 
-                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                                          : motion.status === 'concluded'
-                                          ? 'bg-slate-100 text-slate-700 border-slate-300'
-                                          : 'bg-red-50 text-red-800 border-red-300'
-                                      }`}>
-                                        {motion.status === 'active' ? '● Active Voting' : motion.status === 'concluded' ? '✓ Voting Concluded' : '✕ Canceled'}
-                                      </span>
+                                {isEditing ? (
+                                  <form onSubmit={handleSaveEditMotion} className="bg-[#F5F1E8] p-4 border border-gray-300 space-y-3 text-xs font-sans">
+                                    <h4 className="font-serif font-bold uppercase text-[#0A1F44]">Edit Senate Proposal</h4>
+                                    <div>
+                                      <label className="block font-bold text-gray-700 uppercase mb-1">Proposal Title</label>
+                                      <input
+                                        type="text"
+                                        required
+                                        value={editMotionTitle}
+                                        onChange={(e) => setEditMotionTitle(e.target.value)}
+                                        className="w-full bg-white border border-gray-300 px-3 py-2 focus:outline-none"
+                                      />
                                     </div>
-                                    <p className="text-xs text-gray-600 mt-1">{motion.description}</p>
-                                  </div>
-
-                                  <div className="flex items-center space-x-2 shrink-0">
-                                    {motion.status === 'active' && (
+                                    <div>
+                                      <label className="block font-bold text-gray-700 uppercase mb-1">Description</label>
+                                      <textarea
+                                        required
+                                        rows={3}
+                                        value={editMotionDesc}
+                                        onChange={(e) => setEditMotionDesc(e.target.value)}
+                                        className="w-full bg-white border border-gray-300 px-3 py-2 focus:outline-none"
+                                      />
+                                    </div>
+                                    <div className="flex justify-end space-x-2 pt-1">
                                       <button
-                                        onClick={() => handleUpdateSenateMotionStatus(motion.id, 'concluded')}
-                                        className="px-2.5 py-1 bg-slate-800 text-white hover:bg-slate-900 text-[10px] uppercase font-bold cursor-pointer"
+                                        type="button"
+                                        onClick={() => setEditingMotionId(null)}
+                                        className="px-3 py-1.5 bg-gray-200 text-gray-700 font-bold uppercase text-[10px] cursor-pointer"
                                       >
-                                        Conclude Voting
+                                        Cancel
                                       </button>
-                                    )}
-                                    {motion.status === 'concluded' && (
                                       <button
-                                        onClick={() => handleUpdateSenateMotionStatus(motion.id, 'active')}
-                                        className="px-2.5 py-1 border border-slate-300 hover:border-[#0A1F44] text-[10px] uppercase font-bold text-slate-700 cursor-pointer"
+                                        type="submit"
+                                        className="px-4 py-1.5 bg-[#0D2B4E] hover:bg-[#C9A227] hover:text-[#0A1F44] text-white font-bold uppercase text-[10px] cursor-pointer"
                                       >
-                                        Reopen Voting
+                                        Save Changes
                                       </button>
+                                    </div>
+                                  </form>
+                                ) : (
+                                  <>
+                                    {motion.deletionRequested && (
+                                      <div className="bg-amber-50 border border-amber-300 p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs font-sans">
+                                        <div className="flex items-center space-x-2 text-amber-900">
+                                          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                                          <span>
+                                            <strong>Deletion Requested</strong> by {motion.deletionRequestedBy || 'Senator'}. Awaiting admin approval.
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center space-x-2 shrink-0">
+                                          <button
+                                            onClick={() => handleApproveDeleteMotion(motion.id)}
+                                            className="px-2.5 py-1 bg-red-700 hover:bg-red-800 text-white font-bold text-[10px] uppercase cursor-pointer"
+                                          >
+                                            Approve Deletion
+                                          </button>
+                                          <button
+                                            onClick={() => handleRejectDeleteMotion(motion.id)}
+                                            className="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold text-[10px] uppercase cursor-pointer"
+                                          >
+                                            Reject Request
+                                          </button>
+                                        </div>
+                                      </div>
                                     )}
-                                    <button
-                                      onClick={() => handleDeleteSenateMotion(motion.id)}
-                                      className="px-2.5 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white text-[10px] uppercase font-bold transition-colors flex items-center space-x-1 cursor-pointer"
-                                    >
-                                      <Trash className="h-3 w-3" />
-                                      <span>Delete Motion</span>
-                                    </button>
-                                  </div>
-                                </div>
 
-                                {/* Tally details */}
-                                <div className="bg-[#F5F1E8]/50 p-3 border border-gray-200 text-xs font-sans flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                                  <div className="flex items-center space-x-4 text-[11px] font-bold text-slate-700">
-                                    <span className="text-emerald-700">Aye: {motion.votes?.aye || 0} ({ayePercent}%)</span>
-                                    <span className="text-red-700">Nay: {motion.votes?.nay || 0} ({nayPercent}%)</span>
-                                    <span className="text-slate-600">Abstain: {motion.votes?.abstain || 0}</span>
-                                    <span className="text-[#0A1F44]">Total: {totalVotes} Votes</span>
-                                  </div>
-                                  <div className="w-full sm:w-48 h-2 bg-gray-200 flex overflow-hidden border border-gray-300">
-                                    <div style={{ width: `${ayePercent}%` }} className="bg-emerald-600 h-full" />
-                                    <div style={{ width: `${nayPercent}%` }} className="bg-red-600 h-full" />
-                                    <div style={{ width: `${100 - ayePercent - nayPercent}%` }} className="bg-slate-400 h-full" />
-                                  </div>
-                                </div>
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                      <div>
+                                        <div className="flex items-center space-x-2">
+                                          <span className="font-serif font-bold text-sm text-[#0A1F44]">{motion.title}</span>
+                                          <span className={`text-[9px] font-bold uppercase px-2 py-0.5 border ${
+                                            motion.status === 'active' 
+                                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                              : motion.status === 'concluded'
+                                              ? 'bg-slate-100 text-slate-700 border-slate-300'
+                                              : 'bg-red-50 text-red-800 border-red-300'
+                                          }`}>
+                                            {motion.status === 'active' ? '● Active Voting' : motion.status === 'concluded' ? '✓ Voting Concluded' : '✕ Canceled'}
+                                          </span>
+                                        </div>
+                                        <p className="text-xs text-gray-600 mt-1">{motion.description}</p>
+                                        {motion.authorName && (
+                                          <span className="text-[10px] text-gray-400 block mt-1">
+                                            Proposed by: {motion.authorName}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center space-x-2 shrink-0">
+                                        <button
+                                          onClick={() => handleStartEditMotion(motion)}
+                                          className="px-2.5 py-1 border border-slate-300 hover:border-[#0A1F44] text-[10px] uppercase font-bold text-slate-700 flex items-center space-x-1 cursor-pointer"
+                                        >
+                                          <Edit3 className="h-3 w-3" />
+                                          <span>Edit</span>
+                                        </button>
+                                        {motion.status === 'active' && (
+                                          <button
+                                            onClick={() => handleUpdateSenateMotionStatus(motion.id, 'concluded')}
+                                            className="px-2.5 py-1 bg-slate-800 text-white hover:bg-slate-900 text-[10px] uppercase font-bold cursor-pointer"
+                                          >
+                                            Conclude Voting
+                                          </button>
+                                        )}
+                                        {motion.status === 'concluded' && (
+                                          <button
+                                            onClick={() => handleUpdateSenateMotionStatus(motion.id, 'active')}
+                                            className="px-2.5 py-1 border border-slate-300 hover:border-[#0A1F44] text-[10px] uppercase font-bold text-slate-700 cursor-pointer"
+                                          >
+                                            Reopen Voting
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={() => handleDeleteSenateMotion(motion.id)}
+                                          className="px-2.5 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white text-[10px] uppercase font-bold transition-colors flex items-center space-x-1 cursor-pointer"
+                                        >
+                                          <Trash className="h-3 w-3" />
+                                          <span>Delete</span>
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Tally details */}
+                                    <div className="bg-[#F5F1E8]/50 p-3 border border-gray-200 text-xs font-sans flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                      <div className="flex items-center space-x-4 text-[11px] font-bold text-slate-700">
+                                        <span className="text-emerald-700">Aye: {motion.votes?.aye || 0} ({ayePercent}%)</span>
+                                        <span className="text-red-700">Nay: {motion.votes?.nay || 0} ({nayPercent}%)</span>
+                                        <span className="text-slate-600">Abstain: {motion.votes?.abstain || 0}</span>
+                                        <span className="text-[#0A1F44]">Total: {totalVotes} Votes</span>
+                                      </div>
+                                      <div className="w-full sm:w-48 h-2 bg-gray-200 flex overflow-hidden border border-gray-300">
+                                        <div style={{ width: `${ayePercent}%` }} className="bg-emerald-600 h-full" />
+                                        <div style={{ width: `${nayPercent}%` }} className="bg-red-600 h-full" />
+                                        <div style={{ width: `${100 - ayePercent - nayPercent}%` }} className="bg-slate-400 h-full" />
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             );
                           })}

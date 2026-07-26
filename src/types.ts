@@ -115,6 +115,8 @@ export interface SenateMotion {
   id: string;
   title: string;
   description: string;
+  authorId?: string;
+  authorName?: string;
   votes: {
     aye: number;
     nay: number;
@@ -123,6 +125,9 @@ export interface SenateMotion {
   voters: string[];
   status: 'active' | 'concluded' | 'cancelled';
   createdAt: string;
+  deletionRequested?: boolean;
+  deletionRequestedBy?: string;
+  deletionRequestedAt?: string;
 }
 
 export interface Ballot {
