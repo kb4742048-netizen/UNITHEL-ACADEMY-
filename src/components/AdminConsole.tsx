@@ -128,7 +128,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   const [brandingForm, setBrandingForm] = useState({
     logoUrl: '',
     logoText: 'UNITHEL ACADEMY',
-    logoSubtext: 'ALUMNI ORGANIZATION',
+    logoSubtext: 'ALUMNI ASSOCIATION',
     logoHeight: 32,
     logoStyle: 'framed' as 'transparent' | 'framed' | 'rounded' | 'circle',
     logoFit: 'contain' as 'contain' | 'cover'
@@ -3583,7 +3583,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
                             required
                             value={brandingForm.logoSubtext}
                             onChange={(e) => setBrandingForm({ ...brandingForm, logoSubtext: e.target.value })}
-                            placeholder="e.g. ALUMNI ORGANIZATION"
+                            placeholder="e.g. ALUMNI ASSOCIATION"
                             className="w-full bg-white border border-gray-300 px-3 py-2 focus:outline-none focus:border-[#C9A227] text-xs"
                           />
                         </div>

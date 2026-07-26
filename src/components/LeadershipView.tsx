@@ -6,16 +6,22 @@ import { Compass, Briefcase, Calendar, Award, GraduationCap, Search, ShieldAlert
 
 export default function LeadershipView() {
   const [members, setMembers] = useState<Member[]>([]);
+  const [publicLeaders, setPublicLeaders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    async function loadMembers() {
+    async function loadData() {
       try {
-        const allMembers = await api.fetchMembers();
-        // Keep active members
+        const [allMembers, appearance] = await Promise.all([
+          api.fetchMembers(),
+          api.fetchAppearance().catch(() => ({ leaders: [] }))
+        ]);
         setMembers(allMembers.filter(m => m.status === 'active'));
+        if (appearance && appearance.leaders) {
+          setPublicLeaders(appearance.leaders);
+        }
       } catch (err: any) {
         console.error(err);
         setError('Could not retrieve council members registry.');
@@ -23,7 +29,7 @@ export default function LeadershipView() {
         setLoading(false);
       }
     }
-    loadMembers();
+    loadData();
   }, []);
 
   // Filter members by search term
@@ -36,6 +42,15 @@ export default function LeadershipView() {
       (m.workplace && m.workplace.toLowerCase().includes(term))
     );
   };
+
+  // Filter public leaders by search term
+  const filteredPublicLeaders = publicLeaders.filter(l => {
+    const term = searchTerm.toLowerCase();
+    return (
+      l.name.toLowerCase().includes(term) ||
+      l.position.toLowerCase().includes(term)
+    );
+  });
 
   // 1. Executive Leadership: Active members with a recognized executive/leadership position (excluding Scholar, Member, empty, or Senator)
   const executiveLeaders = members.filter(m => {
@@ -160,12 +175,41 @@ export default function LeadershipView() {
                 <p className="text-xs text-slate-500 font-sans mt-0.5">The high-ranking commissioned officers managing the daily affairs and administration.</p>
               </div>
 
-              {sortedExecutiveLeaders.length === 0 ? (
+              {sortedExecutiveLeaders.length === 0 && filteredPublicLeaders.length === 0 ? (
                 <div className="bg-white border border-gray-200 p-8 text-center text-slate-500 text-xs">
                   No executive officers found.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {filteredPublicLeaders.map((leader, idx) => (
+                    <div 
+                      key={`pub-lead-${idx}`} 
+                      className="bg-white border-2 border-[#C9A227] hover:border-[#0A1F44] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden"
+                    >
+                      <div className="p-6 space-y-5">
+                        <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-5 text-center sm:text-left">
+                          <img 
+                            src={leader.image} 
+                            alt={leader.name} 
+                            className="h-28 w-28 sm:h-32 sm:w-32 object-cover border-2 border-[#C9A227] shadow-md shrink-0 bg-white"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="space-y-2 min-w-0 flex-1">
+                            <h3 className="font-serif font-bold text-lg text-[#0A1F44] leading-snug">
+                              {leader.name}
+                            </h3>
+                            <div className="inline-flex items-center px-2.5 py-1 bg-amber-50 text-[#0A1F44] border border-[#C9A227]/60 text-[10px] font-bold font-mono tracking-wider">
+                              ⭐ {leader.position}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-slate-600 text-xs leading-relaxed text-justify line-clamp-4">
+                          Dedicated executive leader contributing to the strategic advancement, mentorship, and professional growth of Unithel Academy Alumni Association.
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+
                   {sortedExecutiveLeaders.map((leader) => (
                     <div 
                       key={leader.id} 
