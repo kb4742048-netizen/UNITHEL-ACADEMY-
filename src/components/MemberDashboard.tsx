@@ -150,9 +150,31 @@ export default function MemberDashboard({ currentUser, setCurrentUser, blogs, ev
       const res = await api.updateMember(currentUser.id, profileForm);
       if (res.success) {
         setProfileSuccess('Profile parameters successfully adjusted!');
-        const updatedUser = { ...currentUser, ...profileForm };
+        const updatedUser = { ...currentUser, ...profileForm, ...(res.member || {}) };
         setCurrentUser(updatedUser);
         localStorage.setItem('seahawks_user', JSON.stringify(updatedUser));
+        localStorage.setItem('scholar_circle_user', JSON.stringify(updatedUser));
+        if (res.member) {
+          setProfileForm({
+            name: res.member.name || '',
+            classYear: res.member.classYear || '',
+            phone: res.member.phone || '',
+            email: res.member.email || '',
+            position: res.member.position || 'Scholar',
+            avatarUrl: res.member.avatarUrl || '',
+            biography: res.member.biography || '',
+            workplace: res.member.workplace || '',
+            jobTitle: res.member.jobTitle || '',
+            achievements: res.member.achievements || '',
+            socialLinks: res.member.socialLinks || {
+              twitter: '',
+              linkedin: '',
+              github: '',
+              website: ''
+            }
+          });
+        }
+        if (onRefreshData) await onRefreshData();
       } else {
         setProfileSuccess('Failed to adjust profile.');
       }
