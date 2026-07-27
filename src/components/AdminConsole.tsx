@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { Member, Blog, Event, Discussion, Ballot, SenateMotion, DuesRecord, LordPatronInvite, PatronInvite, WebsiteAppearance, News, LeadershipMember } from '../types';
 import * as api from '../api';
-import { getMilitaryInsignia, getMemberTitle, OFFICIAL_POSITIONS, AVAILABLE_POSITIONS } from '../utils/ranks';
+import { getMilitaryInsignia, getMemberTitle, OFFICIAL_POSITIONS, AVAILABLE_POSITIONS, getLeadershipRank } from '../utils/ranks';
 import { compressImageFile } from '../utils/imageCompressor';
 
 interface AdminConsoleProps {
@@ -192,7 +192,8 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
 
       // Only update local form / leader list states if it is a fresh manual load OR if user is not actively customized editing them on the site settings tab
       if (!isBackground || activeTab !== 'appearance') {
-        setLeadersList(appData.leaders || []);
+        const sorted = [...(appData.leaders || [])].sort((a, b) => getLeadershipRank(a.position) - getLeadershipRank(b.position));
+        setLeadersList(sorted);
 
         setAppForm({
           heroTitle: appData.heroTitle || '',
@@ -745,11 +746,12 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
     }
 
     const defaultImage = newLeader.image.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb';
-    const updatedList = [...leadersList, { 
+    const rawList = [...leadersList, { 
       ...newLeader, 
       image: defaultImage,
       id: memberId ? `${memberId}-${posLower.replace(/\s+/g, '-')}` : `manual-${newLeader.name.toLowerCase().trim().replace(/\s+/g, '-')}-${Date.now()}`
     }];
+    const updatedList = rawList.sort((a, b) => getLeadershipRank(a.position) - getLeadershipRank(b.position));
     setLeadersList(updatedList);
     setNewLeader({ name: '', position: '', image: '', memberId: '' });
     

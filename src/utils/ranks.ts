@@ -83,3 +83,30 @@ export function getMemberTitle(position: string | undefined): string {
   
   return position;
 }
+
+/**
+ * Resolves the hierarchical rank order of leadership positions (Chancellor = 1, Provost = 2, Scribe = 3/4, etc.)
+ */
+export function getLeadershipRank(position: string | undefined): number {
+  if (!position) return 100;
+  const p = position.toLowerCase();
+  if (p.includes('chancellor') || p.includes('president') || p.includes('admin') || p.includes('lord patron')) return 1;
+  if (p.includes('provost') || p.includes('vice president')) return 2;
+  if (p.includes('quartermaster') || p.includes('treasurer')) return 3;
+  if (p.includes('scribe') || p.includes('secretary')) return 4;
+  if (p.includes('archivist') || p.includes('assistant secretary')) return 5;
+  if (p.includes('auditor') || p.includes('financial secretary')) return 6;
+  if (p.includes('herald') || p.includes('public relations')) return 7;
+  if (p.includes('counsel') || p.includes('legal')) return 8;
+  if (p.includes('guardian') || p.includes('welfare')) return 9;
+  if (p.includes('registrar') || p.includes('membership')) return 10;
+  if (p.includes('technologist') || p.includes('ict')) return 11;
+  if (p.includes('curator') || p.includes('event')) return 12;
+  if (p.includes('mentor') || p.includes('education')) return 13;
+  if (p.includes('sentinel') || p.includes('discipline')) return 14;
+  if (p.includes('envoy') || p.includes('spokesperson')) return 15;
+  if (p.includes('prefect') || p.includes('chapter')) return 16;
+  if (p.includes('director') || p.includes('committee')) return 17;
+  return 50;
+}
+

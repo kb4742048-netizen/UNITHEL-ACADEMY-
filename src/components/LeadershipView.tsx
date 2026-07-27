@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Member } from '../types';
 import * as api from '../api';
-import { getMilitaryInsignia, getMemberTitle, OFFICIAL_POSITIONS } from '../utils/ranks';
+import { getMilitaryInsignia, getMemberTitle, OFFICIAL_POSITIONS, getLeadershipRank } from '../utils/ranks';
 import { Compass, Briefcase, Calendar, Award, GraduationCap, Search, ShieldAlert, Star } from 'lucide-react';
 
 export default function LeadershipView() {
@@ -20,7 +20,8 @@ export default function LeadershipView() {
         ]);
         setMembers(allMembers.filter(m => m.status === 'active'));
         if (appearance && appearance.leaders) {
-          setPublicLeaders(appearance.leaders);
+          const sorted = [...appearance.leaders].sort((a, b) => getLeadershipRank(a.position) - getLeadershipRank(b.position));
+          setPublicLeaders(sorted);
         }
       } catch (err: any) {
         console.error(err);

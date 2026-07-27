@@ -1,6 +1,7 @@
 import React from 'react';
 import { Calendar, BookOpen, Compass, ChevronRight, Users, Image as ImageIcon, Megaphone, MessageSquare } from 'lucide-react';
 import { Blog, Event, WebsiteAppearance } from '../types';
+import { getLeadershipRank } from '../utils/ranks';
 
 interface HomeViewProps {
   setView: (view: string) => void;
@@ -329,7 +330,9 @@ export default function HomeView({ setView, blogs, events, appearance, openAuthM
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {appearance.leaders && appearance.leaders.length > 0 ? (
-              appearance.leaders.map((leader, i) => (
+              [...appearance.leaders]
+                .sort((a, b) => getLeadershipRank(a.position) - getLeadershipRank(b.position))
+                .map((leader, i) => (
                 <div key={i} className="bg-[#0D2B4E] border border-[#C9A227]/30 p-4 text-center flex flex-col items-center shadow shadow-black/20">
                   <div className="h-20 w-20 rounded-full overflow-hidden border border-[#C9A227] mb-2.5">
                     <img
