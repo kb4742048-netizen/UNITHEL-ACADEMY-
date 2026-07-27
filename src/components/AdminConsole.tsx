@@ -703,16 +703,19 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
         leaders: leadersList
       });
 
-      if (res.success) {
+      if (res && res.success) {
         if (res.appearance) setAppearance(res.appearance);
         triggerFeedback('Public Executive Leaders posted and published to public site successfully!');
         alert('Success: Public Executive Leaders published to public site successfully!');
         await loadAdminData();
         await onRefreshData();
+      } else {
+        throw new Error(res?.error || 'Failed to save leaders to server');
       }
     } catch (err: any) {
       triggerFeedback(err.message, 'error');
       alert('Error publishing leaders: ' + err.message);
+      await loadAdminData();
     }
   };
 
@@ -755,16 +758,19 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
         ...(appearance || {}),
         leaders: updatedList
       });
-      if (res.success) {
+      if (res && res.success) {
         if (res.appearance) setAppearance(res.appearance);
         triggerFeedback('New leader added and published to public site successfully!');
         alert('Success: New leader added and published to public site successfully!');
         await loadAdminData();
         await onRefreshData();
+      } else {
+        throw new Error(res?.error || 'Failed to save new leader to server');
       }
     } catch (err: any) {
-      triggerFeedback('Added to list, but failed to save to server: ' + err.message, 'error');
-      alert('Added to list, but failed to save to server: ' + err.message);
+      triggerFeedback('Failed to save to server: ' + err.message, 'error');
+      alert('Failed to save to server: ' + err.message);
+      await loadAdminData();
     }
   };
 
@@ -776,16 +782,19 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
         ...(appearance || {}),
         leaders: updatedList
       });
-      if (res.success) {
+      if (res && res.success) {
         if (res.appearance) setAppearance(res.appearance);
         triggerFeedback('Leader removed and changes published!');
         alert('Success: Leader removed and changes published!');
         await loadAdminData();
         await onRefreshData();
+      } else {
+        throw new Error(res?.error || 'Failed to sync deletion with server');
       }
     } catch (err: any) {
-      triggerFeedback('Removed from list, but failed to update server: ' + err.message, 'error');
+      triggerFeedback('Failed to update server: ' + err.message, 'error');
       alert('Error updating server: ' + err.message);
+      await loadAdminData();
     }
   };
 
