@@ -106,16 +106,19 @@ export async function fetchMembers(): Promise<Member[]> {
 
 export async function approveMember(id: string): Promise<any> {
   const res = await fetch(`${API_BASE}/api/members/${id}/approve`, { method: 'POST' });
+  try { localStorage.removeItem('cache_members'); } catch (e) {}
   return res.json();
 }
 
 export async function suspendMember(id: string): Promise<any> {
   const res = await fetch(`${API_BASE}/api/members/${id}/suspend`, { method: 'POST' });
+  try { localStorage.removeItem('cache_members'); } catch (e) {}
   return res.json();
 }
 
 export async function unsuspendMember(id: string): Promise<any> {
   const res = await fetch(`${API_BASE}/api/members/${id}/unsuspend`, { method: 'POST' });
+  try { localStorage.removeItem('cache_members'); } catch (e) {}
   return res.json();
 }
 
@@ -125,6 +128,7 @@ export async function updateMember(id: string, data: any): Promise<any> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
+  try { localStorage.removeItem('cache_members'); } catch (e) {}
   return res.json();
 }
 
@@ -467,7 +471,13 @@ export async function updateAppearance(data: any): Promise<any> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
-  return res.json();
+  const json = await res.json();
+  if (json && json.success && json.appearance) {
+    setCache('appearance', json.appearance);
+  } else {
+    try { localStorage.removeItem('cache_appearance'); } catch (e) {}
+  }
+  return json;
 }
 
 export async function fetchNews(): Promise<News[]> {
