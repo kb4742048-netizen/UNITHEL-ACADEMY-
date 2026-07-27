@@ -994,6 +994,7 @@ async function saveToPostgres(db: DatabaseSchema, targetTable?: string) {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(`[PostgreSQL] DB sync transaction failed${targetTable ? ' for table: ' + targetTable : ' fully'}. Rolling back.`, err);
+    throw err;
   } finally {
     client.release();
   }
@@ -1322,7 +1323,7 @@ function loadDb(): DatabaseSchema {
   return cachedDb;
 }
 
-function saveDb(data: DatabaseSchema, targetTable?: string) {
+async function saveDb(data: DatabaseSchema, targetTable?: string) {
   cleanupDuplicateLeaders(data);
   cachedDb = data;
   if (!isPostgres) {
@@ -1331,9 +1332,10 @@ function saveDb(data: DatabaseSchema, targetTable?: string) {
     } catch (e) {
       console.error('Error writing DB_FILE fallback', e);
     }
+    return;
   }
   if (isPostgres) {
-    saveToPostgres(data, targetTable).catch(err => console.error('[PostgreSQL] Async sync error:', err));
+    await saveToPostgres(data, targetTable);
   }
 }
 
@@ -2606,19 +2608,24 @@ app.get('/api/appearance', (req, res) => {
   res.json(db.appearance);
 });
 
-app.post('/api/appearance', (req, res) => {
-  const db = loadDb();
+app.post('/api/appearance', async (req, res) => {
+  try {
+    const db = loadDb();
 
-  // Merge incoming appearance updates including computed image settings
-  if (req.body && typeof req.body === 'object') {
-    db.appearance = {
-      ...db.appearance,
-      ...req.body
-    };
+    // Merge incoming appearance updates including computed image settings
+    if (req.body && typeof req.body === 'object') {
+      db.appearance = {
+        ...db.appearance,
+        ...req.body
+      };
+    }
+
+    await saveDb(db, 'appearance');
+    res.json({ success: true, appearance: db.appearance });
+  } catch (err: any) {
+    console.error('Error saving appearance:', err);
+    res.status(500).json({ error: err.message || 'Failed to save appearance' });
   }
-
-  saveDb(db, 'appearance');
-  res.json({ success: true, appearance: db.appearance });
 });
 
 
