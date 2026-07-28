@@ -17,10 +17,25 @@ const DB_FILE = path.join(process.cwd(), 'database.json');
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Fast API response caching middleware
+// Global CORS & OPTIONS preflight middleware
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Dynamic API response caching middleware
 app.use((req, res, next) => {
   if (req.method === 'GET' && req.path.startsWith('/api/')) {
-    res.setHeader('Cache-Control', 'public, max-age=10, stale-while-revalidate=60');
+    if (req.path.includes('/members') || req.path.includes('/dues') || req.path.includes('/chat') || req.path.includes('/senate') || req.path.includes('/invites') || req.path.includes('/db-status')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=5, stale-while-revalidate=15');
+    }
   }
   next();
 });
@@ -62,7 +77,141 @@ interface DatabaseSchema {
 }
 
 const defaultDb: DatabaseSchema = {
-  members: [],
+  members: [
+    {
+      id: 'admin-1',
+      name: 'Dr. John Doe',
+      classYear: '1995',
+      email: 'admin@seahawks.org',
+      phone: '07068019293',
+      role: 'admin',
+      status: 'active',
+      joinedAt: '2020-01-15',
+      avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e',
+      position: 'Chancellor',
+      isPatron: true,
+      patronTitle: 'Grand Patron & Founder',
+      biography: 'Distinguished Chancellor and Academic Leader with over 25 years of educational service.',
+      workplace: 'UNITHEL ACADEMY',
+      jobTitle: 'Chancellor & President',
+      achievements: 'Academic Senate Founder & Leader',
+      socialLinks: { twitter: '', linkedin: '' }
+    },
+    {
+      id: 'm-1',
+      name: 'Prof. Alexander Vance',
+      classYear: '1998',
+      email: 'a.vance@unithel.edu',
+      phone: '08023456781',
+      role: 'member',
+      status: 'active',
+      joinedAt: '2021-03-10',
+      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d',
+      position: 'Vice Chancellor',
+      isPatron: true,
+      patronTitle: 'Senior Patron',
+      biography: 'Vice Chancellor and Senior Professor of Maritime Engineering.',
+      workplace: 'Unithel Faculty Council',
+      jobTitle: 'Vice Chancellor',
+      achievements: 'Author of 40+ Peer-Reviewed Papers',
+      socialLinks: { twitter: '', linkedin: '' }
+    },
+    {
+      id: 'm-2',
+      name: 'Dr. Eleanor Wright',
+      classYear: '2001',
+      email: 'e.wright@unithel.edu',
+      phone: '08034567892',
+      role: 'member',
+      status: 'active',
+      joinedAt: '2021-06-15',
+      avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2',
+      position: 'Provost',
+      isPatron: false,
+      patronTitle: '',
+      biography: 'Provost of Academic Affairs overseeing curriculum standards and research grants.',
+      workplace: 'Unithel Administration',
+      jobTitle: 'Academic Provost',
+      achievements: 'Excellence in Pedagogy Award',
+      socialLinks: { twitter: '', linkedin: '' }
+    },
+    {
+      id: 'm-3',
+      name: 'Capt. Marcus Sterling',
+      classYear: '2004',
+      email: 'm.sterling@unithel.edu',
+      phone: '08045678903',
+      role: 'member',
+      status: 'active',
+      joinedAt: '2022-01-20',
+      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e',
+      position: 'Quartermaster',
+      isPatron: false,
+      patronTitle: '',
+      biography: 'Chief Quartermaster directing logistics, capital funds, and alumni endowment accounts.',
+      workplace: 'Academy Treasury',
+      jobTitle: 'Chief Financial Officer',
+      achievements: 'Managed $10M Endowment Fund',
+      socialLinks: { twitter: '', linkedin: '' }
+    },
+    {
+      id: 'm-4',
+      name: 'Hon. Victoria Hayes',
+      classYear: '2008',
+      email: 'v.hayes@unithel.edu',
+      phone: '08056789014',
+      role: 'member',
+      status: 'active',
+      joinedAt: '2022-05-12',
+      avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956',
+      position: 'Scribe',
+      isPatron: false,
+      patronTitle: '',
+      biography: 'Academy Chief Scribe recording legislative motions and official Senate decrees.',
+      workplace: 'Unithel Secretariat',
+      jobTitle: 'Chief Registrar & Scribe',
+      achievements: 'Secretariat Modernization Directive',
+      socialLinks: { twitter: '', linkedin: '' }
+    },
+    {
+      id: 'm-5',
+      name: 'Senator Julian Thorne',
+      classYear: '2010',
+      email: 'j.thorne@unithel.edu',
+      phone: '08067890125',
+      role: 'member',
+      status: 'active',
+      joinedAt: '2023-02-14',
+      avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7',
+      position: 'Senator',
+      isPatron: false,
+      patronTitle: '',
+      biography: 'Elected Senate Council Representative advocating for alumni career advancement.',
+      workplace: 'Senate Assembly',
+      jobTitle: 'Legislative Representative',
+      achievements: 'Authored Motion on Alumni Grant Sponsorships',
+      socialLinks: { twitter: '', linkedin: '' }
+    },
+    {
+      id: 'm-6',
+      name: 'Lord Harrison Drake',
+      classYear: 'Lord Patron',
+      email: 'h.drake@patronlodge.org',
+      phone: '08089012347',
+      role: 'lord_patron',
+      status: 'active',
+      joinedAt: '2023-09-01',
+      avatarUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a',
+      position: 'Lord Patron',
+      isPatron: true,
+      patronTitle: 'Lord Patron of the Academy',
+      biography: 'Distinguished Benefactor and Patron providing guidance and financial support to the Academy.',
+      workplace: 'Drake Maritime Holdings',
+      jobTitle: 'Managing Director',
+      achievements: 'Principal Benefactor for Unithel Academy Library',
+      socialLinks: { twitter: '', linkedin: '' }
+    }
+  ],
   patronInvitations: [],
   blogs: [
     {
@@ -1408,6 +1557,18 @@ async function initializeDataEngine() {
     }
   }
 
+  // Ensure default seed members exist if missing while preserving user-registered members
+  if (!cachedDb.members || cachedDb.members.length === 0) {
+    cachedDb.members = [...defaultDb.members];
+  } else {
+    for (const dm of defaultDb.members) {
+      const exists = cachedDb.members.some(m => m.id === dm.id || (m.email && m.email.toLowerCase().trim() === dm.email.toLowerCase().trim()));
+      if (!exists) {
+        cachedDb.members.push(dm);
+      }
+    }
+  }
+
   cleanupDuplicateLeaders(cachedDb);
   saveDb(cachedDb);
 }
@@ -1513,22 +1674,22 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { name, classYear, email, phone, password } = req.body;
   if (!name || !classYear || !email || !phone || !password) {
     return res.status(400).json({ error: 'All fields are required.' });
   }
 
   const db = loadDb();
-  if (email === getAdminCredentials().email || db.members.some(m => m.email === email)) {
-    return res.status(400).json({ error: 'An account with this email already exists.' });
+  if (email === getAdminCredentials().email || db.members.some(m => m.email && m.email.toLowerCase().trim() === email.toLowerCase().trim())) {
+    return res.status(400).json({ error: 'An account with this email address already exists.' });
   }
 
   const newMember = {
     id: 'm-' + Math.random().toString(36).substr(2, 9),
     name,
     classYear,
-    email,
+    email: email.trim(),
     phone,
     password,
     role: 'member',
@@ -1538,13 +1699,13 @@ app.post('/api/auth/register', (req, res) => {
   };
 
   db.members.push(newMember);
-  saveDb(db);
+  await saveDb(db, 'members');
 
   res.json({ success: true, message: 'Registration submitted successfully. Pending administrative approval.' });
 });
 
 // Register via Lord Patron secure code
-app.post('/api/auth/register-lord-patron', (req, res) => {
+app.post('/api/auth/register-lord-patron', async (req, res) => {
   const { name, email, phone, password, code } = req.body;
   if (!name || !email || !phone || !password || !code) {
     return res.status(400).json({ error: 'All registration details and invitation code are required.' });
@@ -1556,8 +1717,8 @@ app.post('/api/auth/register-lord-patron', (req, res) => {
     return res.status(400).json({ error: 'Invalid or expired Lord Patron invitation link code.' });
   }
 
-  if (email === getAdminCredentials().email || db.members.some(m => m.email === email)) {
-    return res.status(400).json({ error: 'An account with this email already exists.' });
+  if (email === getAdminCredentials().email || db.members.some(m => m.email && m.email.toLowerCase().trim() === email.toLowerCase().trim())) {
+    return res.status(400).json({ error: 'An account with this email address already exists.' });
   }
 
   const newMemberId = 'lp-' + Math.random().toString(36).substr(2, 9);
@@ -1565,7 +1726,7 @@ app.post('/api/auth/register-lord-patron', (req, res) => {
     id: newMemberId,
     name,
     classYear: 'Lord Patron',
-    email,
+    email: email.trim(),
     phone,
     password,
     role: 'lord_patron',
@@ -1578,13 +1739,15 @@ app.post('/api/auth/register-lord-patron', (req, res) => {
   db.lordPatronInvites[inviteIndex].isUsed = true;
   db.lordPatronInvites[inviteIndex].usedBy = newMemberId;
 
-  saveDb(db);
+  await saveDb(db, 'members');
+  await saveDb(db, 'lord-patron-invites');
   res.json({ success: true, message: 'Lord Patron account activated successfully! You may now log in.' });
 });
 
 
 // 2. MEMBER MANAGEMENT API (Admin only)
-app.get('/api/members', (req, res) => {
+app.get('/api/members', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   const db = loadDb();
   let hasAdmin = db.members.some(m => m.role === 'admin' || m.id === 'admin-1' || m.id === 'admin');
   if (!hasAdmin) {
@@ -1609,114 +1772,119 @@ app.get('/api/members', (req, res) => {
       achievements: 'Academic Senate Leader',
       socialLinks: { twitter: '', linkedin: '' }
     });
-    saveDb(db);
+    await saveDb(db, 'members');
   }
   res.json(db.members);
 });
 
-app.post('/api/members/:id/approve', (req, res) => {
+app.post('/api/members/:id/approve', async (req, res) => {
   const { id } = req.params;
   const db = loadDb();
   const m = db.members.find(member => member.id === id);
   if (m) {
     m.status = 'active';
-    saveDb(db);
+    await saveDb(db, 'members');
     return res.json({ success: true, member: m });
   }
   res.status(404).json({ error: 'Member not found.' });
 });
 
-app.post('/api/members/:id/suspend', (req, res) => {
+app.post('/api/members/:id/suspend', async (req, res) => {
   const { id } = req.params;
   const db = loadDb();
   const m = db.members.find(member => member.id === id);
   if (m) {
     m.status = 'suspended';
-    saveDb(db);
+    await saveDb(db, 'members');
     return res.json({ success: true, member: m });
   }
   res.status(404).json({ error: 'Member not found.' });
 });
 
-app.post('/api/members/:id/unsuspend', (req, res) => {
+app.post('/api/members/:id/unsuspend', async (req, res) => {
   const { id } = req.params;
   const db = loadDb();
   const m = db.members.find(member => member.id === id);
   if (m) {
     m.status = 'active';
-    saveDb(db);
+    await saveDb(db, 'members');
     return res.json({ success: true, member: m });
   }
   res.status(404).json({ error: 'Member not found.' });
 });
 
-app.put('/api/members/:id', (req, res) => {
-  const { id } = req.params;
-  const { 
-    name, classYear, email, phone, avatarUrl,
-    position, isPatron, patronTitle, biography, 
-    workplace, jobTitle, achievements, socialLinks 
-  } = req.body;
-  
-  const db = loadDb();
-  let m = db.members.find(member => member.id === id || (id === 'admin' && (member.role === 'admin' || member.id === 'admin-1')) || (id === 'admin-1' && member.role === 'admin'));
-  
-  if (!m && (id === 'admin' || id === 'admin-1' || id.includes('admin'))) {
-    const adminCreds = getAdminCredentials();
-    m = {
-      id: id || 'admin-1',
-      name: name || adminCreds.name,
-      email: email || adminCreds.email,
-      password: null,
-      classYear: classYear || adminCreds.classYear,
-      phone: phone || '07068019293',
-      role: 'admin',
-      status: 'active',
-      joinedAt: '2026-07-25',
-      avatarUrl: avatarUrl || adminCreds.avatarUrl,
-      position: position || 'Chancellor',
-      isPatron: false,
-      patronTitle: '',
-      biography: biography || 'President & Administrator of Unithel Academy',
-      workplace: workplace || 'UNITHEL ACADEMY',
-      jobTitle: jobTitle || 'Chancellor',
-      achievements: achievements || 'Academic Senate Leader',
-      socialLinks: socialLinks || { twitter: '', linkedin: '' }
-    };
-    db.members.unshift(m);
-  }
-
-  if (m) {
-    if (name !== undefined) m.name = name;
-    if (classYear !== undefined) m.classYear = classYear;
-    if (email !== undefined) m.email = email;
-    if (phone !== undefined) m.phone = phone;
-    if (avatarUrl !== undefined) m.avatarUrl = avatarUrl;
-    if (position !== undefined) m.position = position;
-    if (isPatron !== undefined) m.isPatron = isPatron;
-    if (patronTitle !== undefined) m.patronTitle = patronTitle;
-    if (biography !== undefined) m.biography = biography;
-    if (workplace !== undefined) m.workplace = workplace;
-    if (jobTitle !== undefined) m.jobTitle = jobTitle;
-    if (achievements !== undefined) m.achievements = achievements;
-    if (socialLinks !== undefined) m.socialLinks = socialLinks;
+app.put('/api/members/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      name, classYear, email, phone, avatarUrl,
+      position, isPatron, patronTitle, biography, 
+      workplace, jobTitle, achievements, socialLinks 
+    } = req.body;
     
-    // Sync with executive leadership roster if present
-    if (db.appearance && db.appearance.leaders) {
-      const leaderIndex = db.appearance.leaders.findIndex((l: any) => l.memberId === m.id || (l.name && m.name && l.name.toLowerCase().trim() === m.name.toLowerCase().trim()));
-      if (leaderIndex !== -1) {
-        if (name !== undefined) db.appearance.leaders[leaderIndex].name = name;
-        if (position !== undefined) db.appearance.leaders[leaderIndex].position = position;
-        if (avatarUrl !== undefined) db.appearance.leaders[leaderIndex].image = avatarUrl;
-        if (biography !== undefined) db.appearance.leaders[leaderIndex].biography = biography;
-        if (socialLinks !== undefined) db.appearance.leaders[leaderIndex].socialLinks = socialLinks;
-      }
+    const db = loadDb();
+    let m = db.members.find(member => member.id === id || (id === 'admin' && (member.role === 'admin' || member.id === 'admin-1')) || (id === 'admin-1' && member.role === 'admin'));
+    
+    if (!m && (id === 'admin' || id === 'admin-1' || id.includes('admin'))) {
+      const adminCreds = getAdminCredentials();
+      m = {
+        id: id || 'admin-1',
+        name: name || adminCreds.name,
+        email: email || adminCreds.email,
+        password: null,
+        classYear: classYear || adminCreds.classYear,
+        phone: phone || '07068019293',
+        role: 'admin',
+        status: 'active',
+        joinedAt: '2026-07-25',
+        avatarUrl: avatarUrl || adminCreds.avatarUrl,
+        position: position || 'Chancellor',
+        isPatron: false,
+        patronTitle: '',
+        biography: biography || 'President & Administrator of Unithel Academy',
+        workplace: workplace || 'UNITHEL ACADEMY',
+        jobTitle: jobTitle || 'Chancellor',
+        achievements: achievements || 'Academic Senate Leader',
+        socialLinks: socialLinks || { twitter: '', linkedin: '' }
+      };
+      db.members.unshift(m);
     }
 
-    saveDb(db);
-    return res.json({ success: true, member: m });
+    if (m) {
+      if (name !== undefined) m.name = name;
+      if (classYear !== undefined) m.classYear = classYear;
+      if (email !== undefined) m.email = email;
+      if (phone !== undefined) m.phone = phone;
+      if (avatarUrl !== undefined) m.avatarUrl = avatarUrl;
+      if (position !== undefined) m.position = position;
+      if (isPatron !== undefined) m.isPatron = isPatron;
+      if (patronTitle !== undefined) m.patronTitle = patronTitle;
+      if (biography !== undefined) m.biography = biography;
+      if (workplace !== undefined) m.workplace = workplace;
+      if (jobTitle !== undefined) m.jobTitle = jobTitle;
+      if (achievements !== undefined) m.achievements = achievements;
+      if (socialLinks !== undefined) m.socialLinks = socialLinks;
+      
+      // Sync with executive leadership roster if present
+      if (db.appearance && db.appearance.leaders) {
+        const leaderIndex = db.appearance.leaders.findIndex((l: any) => l.memberId === m.id || (l.name && m.name && l.name.toLowerCase().trim() === m.name.toLowerCase().trim()));
+        if (leaderIndex !== -1) {
+          if (name !== undefined) db.appearance.leaders[leaderIndex].name = name;
+          if (position !== undefined) db.appearance.leaders[leaderIndex].position = position;
+          if (avatarUrl !== undefined) db.appearance.leaders[leaderIndex].image = avatarUrl;
+          if (biography !== undefined) db.appearance.leaders[leaderIndex].biography = biography;
+          if (socialLinks !== undefined) db.appearance.leaders[leaderIndex].socialLinks = socialLinks;
+        }
+      }
+
+      await saveDb(db, 'members');
+      return res.json({ success: true, member: m });
+    }
+    res.status(404).json({ error: 'Member not found.' });
+  } catch (err: any) {
+    console.error('Error updating member:', err);
+    res.status(500).json({ error: err.message || 'Failed to update member profile.' });
   }
-  res.status(404).json({ error: 'Member not found.' });
 });
 
 
@@ -2524,7 +2692,7 @@ app.get('/api/patron/invites/validate/:token', (req, res) => {
   res.json({ valid: false, message: 'Invalid or expired invitation link.' });
 });
 
-app.post('/api/patron/invites/register/:token', (req, res) => {
+app.post('/api/patron/invites/register/:token', async (req, res) => {
   const { token } = req.params;
   const { name, email, phone, password } = req.body;
 
@@ -2551,7 +2719,7 @@ app.post('/api/patron/invites/register/:token', (req, res) => {
     inviteIndex = legacyIndex;
   }
 
-  if (email === getAdminCredentials().email || db.members.some(m => m.email === email)) {
+  if (email === getAdminCredentials().email || db.members.some(m => m.email && m.email.toLowerCase().trim() === email.toLowerCase().trim())) {
     return res.status(400).json({ error: 'An account with this email address already exists.' });
   }
 
@@ -2563,7 +2731,7 @@ app.post('/api/patron/invites/register/:token', (req, res) => {
     id: newMemberId,
     name,
     classYear: assignedPosition,
-    email,
+    email: email.trim(),
     phone,
     password,
     role: assignedRole,
@@ -2586,7 +2754,12 @@ app.post('/api/patron/invites/register/:token', (req, res) => {
     db.lordPatronInvites[inviteIndex].usedBy = newMemberId;
   }
 
-  saveDb(db);
+  await saveDb(db, 'members');
+  if (isNewSystem) {
+    await saveDb(db, 'patron-invitations');
+  } else {
+    await saveDb(db, 'lord-patron-invites');
+  }
 
   res.json({
     success: true,
