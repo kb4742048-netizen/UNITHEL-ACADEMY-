@@ -135,6 +135,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   });
 
   const [isSavingBranding, setIsSavingBranding] = useState(false);
+  const [isSavingAppearance, setIsSavingAppearance] = useState(false);
 
   // Public Leaders state
   const [leadersList, setLeadersList] = useState<LeadershipMember[]>([]);
@@ -199,7 +200,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       setIsPostgres(dbStatus.isPostgres);
 
       // Only update local form / leader list states if it is a fresh manual load OR if user is not actively customized editing them on the site settings tab
-      if (!isBackground || activeTab !== 'appearance') {
+      if (!isBackground || (activeTab !== 'appearance' && activeTab !== 'branding' && activeTab !== 'public_leaders')) {
         const sorted = [...(appData.leaders || [])].sort((a, b) => getLeadershipRank(a.position) - getLeadershipRank(b.position));
         setLeadersList(sorted);
 
@@ -607,6 +608,7 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
   // 9. Site settings customization
   const handleSaveAppearance = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSavingAppearance(true);
     const announList = appForm.announcementsString.split('\n').map(a => a.trim()).filter(Boolean);
     const gallList = appForm.galleryString.split('\n').map(g => g.trim()).filter(Boolean);
     const computedRatio = appForm.heroImageHeight > 500 ? '21:9' : appForm.heroImageHeight < 360 ? '4:3' : '16:9';
@@ -632,16 +634,14 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
 
       if (res && res.success) {
         if (res.appearance) setAppearance(res.appearance);
-        triggerFeedback('Visual identity coordinates & image settings published live across the portal!');
-        alert('Success: Site settings updated and published live across the portal!');
-        await loadAdminData();
+        triggerFeedback('Site settings updated & synchronized live across the portal!');
+        await loadAdminData(true);
         await onRefreshData();
       } else {
         const updatedLocal = { ...appearance, ...payload };
         setAppearance(updatedLocal as any);
         try { localStorage.setItem('cache_appearance', JSON.stringify(updatedLocal)); } catch (err) {}
-        triggerFeedback('Site settings updated locally and synchronized across portal preview!');
-        alert('Success: Site settings updated and applied across the portal!');
+        triggerFeedback('Site settings updated locally & synchronized across portal!');
         await onRefreshData();
       }
     } catch (err: any) {
@@ -649,9 +649,10 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       const updatedLocal = { ...appearance, ...payload };
       setAppearance(updatedLocal as any);
       try { localStorage.setItem('cache_appearance', JSON.stringify(updatedLocal)); } catch (e) {}
-      triggerFeedback('Site settings saved locally and applied to portal preview!');
-      alert('Success: Site settings updated and applied across the portal!');
+      triggerFeedback('Site settings saved locally & applied across portal!');
       await onRefreshData();
+    } finally {
+      setIsSavingAppearance(false);
     }
   };
 
@@ -677,15 +678,13 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       if (res && res.success) {
         if (res.appearance) setAppearance(res.appearance);
         triggerFeedback('Site branding successfully updated & published live across the portal!');
-        alert('Success: Site branding updated & published live!');
-        await loadAdminData();
+        await loadAdminData(true);
         await onRefreshData();
       } else {
         const updatedLocal = { ...appearance, ...payload };
         setAppearance(updatedLocal as any);
         try { localStorage.setItem('cache_appearance', JSON.stringify(updatedLocal)); } catch (e) {}
         triggerFeedback('Branding updated and applied across portal!');
-        alert('Success: Branding updated and applied across portal!');
         await onRefreshData();
       }
     } catch (err: any) {
@@ -694,7 +693,6 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       setAppearance(updatedLocal as any);
       try { localStorage.setItem('cache_appearance', JSON.stringify(updatedLocal)); } catch (e) {}
       triggerFeedback('Branding updated and applied across portal!');
-      alert('Success: Branding updated and applied across portal!');
       await onRefreshData();
     } finally {
       setIsSavingBranding(false);
@@ -740,16 +738,14 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
 
       if (res && res.success) {
         if (res.appearance) setAppearance(res.appearance);
-        triggerFeedback('Public Executive Leaders posted and published to public site successfully!');
-        alert('Success: Public Executive Leaders published to public site successfully!');
-        await loadAdminData();
+        triggerFeedback('Public Executive Leaders posted & published live across the portal!');
+        await loadAdminData(true);
         await onRefreshData();
       } else {
         const updatedLocal = { ...appearance, ...payload };
         setAppearance(updatedLocal as any);
         try { localStorage.setItem('cache_appearance', JSON.stringify(updatedLocal)); } catch (e) {}
         triggerFeedback('Leaders list updated and applied across portal!');
-        alert('Success: Public Executive Leaders published across portal!');
         await onRefreshData();
       }
     } catch (err: any) {
@@ -758,7 +754,6 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
       setAppearance(updatedLocal as any);
       try { localStorage.setItem('cache_appearance', JSON.stringify(updatedLocal)); } catch (e) {}
       triggerFeedback('Leaders list updated and applied across portal!');
-      alert('Success: Public Executive Leaders published across portal!');
       await onRefreshData();
     }
   };
@@ -3497,9 +3492,20 @@ export default function AdminConsole({ currentUser, blogs, events, onRefreshData
 
                       <button
                         type="submit"
-                        className="px-4 py-2.5 bg-[#0D2B4E] text-white uppercase font-bold tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44]"
+                        disabled={isSavingAppearance}
+                        className="px-6 py-3 bg-[#0D2B4E] text-[#C9A227] border-2 border-[#C9A227] uppercase font-bold text-xs tracking-widest hover:bg-[#C9A227] hover:text-[#0A1F44] transition-all flex items-center justify-center space-x-2 shadow-md disabled:opacity-50 cursor-pointer"
                       >
-                        Synchronize Settings
+                        {isSavingAppearance ? (
+                          <>
+                            <div className="animate-spin h-4 w-4 border-2 border-[#C9A227] border-t-transparent rounded-full" />
+                            <span>Synchronizing Settings...</span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-4 w-4" />
+                            <span>Synchronize Settings</span>
+                          </>
+                        )}
                       </button>
                     </form>
                   </div>

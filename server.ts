@@ -31,7 +31,7 @@ app.use((req, res, next) => {
 // Dynamic API response caching middleware
 app.use((req, res, next) => {
   if (req.method === 'GET' && req.path.startsWith('/api/')) {
-    if (req.path.includes('/members') || req.path.includes('/dues') || req.path.includes('/chat') || req.path.includes('/senate') || req.path.includes('/invites') || req.path.includes('/db-status')) {
+    if (req.path.includes('/members') || req.path.includes('/dues') || req.path.includes('/chat') || req.path.includes('/senate') || req.path.includes('/invites') || req.path.includes('/db-status') || req.path.includes('/appearance')) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     } else {
       res.setHeader('Cache-Control', 'public, max-age=5, stale-while-revalidate=15');

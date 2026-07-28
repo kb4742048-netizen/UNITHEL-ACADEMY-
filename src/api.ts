@@ -601,15 +601,15 @@ export async function generateLordPatronInvite(): Promise<any> {
 }
 
 export async function fetchAppearance(): Promise<WebsiteAppearance> {
-  const cached = getCached<WebsiteAppearance>('appearance');
   try {
-    const res = await fetch(`${API_BASE}/api/appearance`);
+    const res = await fetch(`${API_BASE}/api/appearance?_t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       setCache('appearance', data);
       return data;
     }
   } catch (e) {}
+  const cached = getCached<WebsiteAppearance>('appearance');
   return cached || {
     logoUrl: '',
     heroTitle: 'UNITHEL ACADEMY ALUMNI ASSOCIATION',
